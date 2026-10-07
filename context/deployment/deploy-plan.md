@@ -224,7 +224,51 @@ Branch renamed `master` → `main` (and remote default updated) to match D2/Phas
 
 Local verification (Phase 1.7) all green: `check` clean, `makemigrations --check` clean, `collectstatic` 130 files OK, `check --deploy` exit 0 under prod-shaped env, `/health/` → 200 `ok`, `/admin/` → 302.
 
-**Railway CLI** installed to `~/.local/npm-global/bin` (version 5.63.4) because the system npm prefix is root-owned. `railway login` is **not yet done** — Phase 2 onward is blocked on that human gate.
+**Railway CLI** installed to `~/.local/npm-global/bin` (version 5.63.4) because the system npm prefix is root-owned.
+
+---
+
+## Execution log — Phase 2–4 completed (2026-10-07)
+
+Live URL: **https://stock-guard-production.up.railway.app** — `/health/` → 200, `/admin/` → 302, `/static/admin/css/base.css` → 200 `text/css`, `/nonexistent` → production 404 (DEBUG off). Service status `SUCCESS`.
+
+Railway artifacts: project `stock-guard` (`36f63c7f-…`), environment `production` (`c778649a-…`), app service `stock-guard` (`55c4eb5b-…`, GitHub-sourced from `mat0714/10-x-devs-stock-guard`@`main`), Postgres service (`81b3efa8-…`, image `ghcr.io/railwayapp-templates/postgres-ssl:18`, region `iad`).
+
+### Material findings — the plan's assumptions were wrong in three places
+
+1. **D7 is falsified: Railpack is NOT the active builder.** Every deployment (GitHub and local) reports `builder: DOCKERFILE` — Railway auto-detects and prefers the committed `Dockerfile` regardless of the service `builder: RAILPACK` setting. The "dormant fallback" premise does not hold: the Dockerfile **is** the builder. Consequence: the plan's Railpack-specific `RAILPACK_*` vars are inert, and the `startCommand` override should be treated as Dockerfile-CMD-equivalent. **Recommendation:** either accept the Dockerfile as the real build path (delete the RAILPACK illusion) or remove `Dockerfile` from the repo if Railpack is genuinely wanted — cannot have both.
+
+2. **`startCommand` with `${PORT:-8000}` bound the wrong port.** Railway injects `PORT=8080`, so gunicorn listened on `0.0.0.0:8080`, but the service's Router target port defaulted to `8000` → healthcheck "service unavailable" → deploy FAILED (4 consecutive attempts). Resolved by setting the service domain `targetPort = 8080` to match `$PORT`. This was not in the plan; the plan assumed `--bind 0.0.0.0:${PORT:-8000}` was sufficient.
+
+3. **`ALLOWED_HOSTS` blocked the healthcheck.** Railway's internal healthcheck probes with a Host header not in the plan's allowlist (`stock-guard-production.up.railway.app` pattern). With `DEBUG=False`, Django returns **400 Bad Request** to the probe → healthcheck fails. Resolved by adding `healthcheck.railway.app` and the private domain: final value `ALLOWED_HOSTS=stock-guard-production.up.railway.app,healthcheck.railway.app,stock-guard.railway.internal`.
+
+### Phase 3 blocker (HUMAN GATE): Railway GitHub App not authorised
+
+`deploymentTriggerCreate` for `mat0714/10-x-devs-stock-guard` returns **"Cannot create deployment trigger … because no one in the project has access to it"** — the Railway GitHub App is not installed/authorised for the repo. **Consequence: there is no GitHub auto-deploy trigger; pushes to `main` do NOT deploy** (verified: empty commit `6e20588` produced no deployment). D2's "Railway native GitHub auto-deploy" contract is **not yet in effect**. To complete it: install the Railway GitHub App on the repo (https://railway.com/account → GitHub, or the "Connect repo" prompt), then re-run `deploymentTriggerCreate`. Until then, deploys require `railway up --service stock-guard --ci` (which uses local upload, not GitHub).
+
+### Deviations applied during Phase 2–4
+
+- Cleared the `startCommand` override (set to `""`) so the Dockerfile `CMD` governs; the CMD was corrected to shell-form `gunicorn --bind 0.0.0.0:${PORT:-8000}` so `$PORT` expands.
+- Set service domain `targetPort = 8080` (Railway's injected `PORT`) — required for Router/healthcheck reachability.
+- Added `healthcheck.railway.app` + private domain to `ALLOWED_HOSTS`.
+- `SECRET_KEY` generated and set via `--stdin` (value never printed/logged).
+- `DATABASE_URL` set as a reference variable `${{Postgres.DATABASE_URL}}` on the app service.
+- Registered an SSH key with Railway; **in-container `check --deploy` (Phase 4 item) NOT run** — `railway ssh` needs interactive host-key confirmation (askpass unavailable in this environment). Covered by the local prod-shaped `check --deploy` (exit 0).
+
+### Phase 4 verification results
+
+| Check | Result |
+|---|---|
+| `railway up` completes | ✅ SUCCESS (`0366c589`, and the `railway up` that first passed) |
+| `preDeployCommand` migrate hook | ✅ logs show "Apply all migrations: admin, auth, contenttypes, sessions" |
+| `collectstatic` in startCommand | ✅ "130 static files copied / 0 unmodified" |
+| Reachability `/health/` → 200 ok | ✅ |
+| Service shows "healthy" | ✅ status SUCCESS |
+| `/admin/` loads with CSS | ✅ 302 → login, `base.css` served 200 `text/css` |
+| `check --deploy` in prod | ⚠️ not run in-container (SSH gate); local prod-shaped run exit 0 |
+| `DEBUG=False` in prod | ✅ clean 404, no debug page |
+| Postgres TLS (`ssl_require=True`) | ✅ migrate ran against Postgres with no TLS error |
+| Builder pin check (D7) | ❌ **FAILED** — builder is `DOCKERFILE`, not RAILPACK (finding #1) |
 
 ---
 
