@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --frozen --no-dev
+
+      - name: Django system checks
+        run: uv run python manage.py check
+
+      - name: Migration drift check
+        run: uv run python manage.py makemigrations --check --dry-run
+
+      - name: Collect static (parity with prod startCommand)
+        run: uv run python manage.py collectstatic --noinput
+
+      - name: Deploy checklist
+        # Run against production-shaped env so the check reflects the deployed
+        # configuration rather than dev defaults. A dummy DATABASE_URL is fine:
+        # check --deploy never opens a connection. Remaining warnings (HSTS,
+        # redirect) are long-tail hardening tracked in deploy-plan.md.
+        env:
+          DEBUG: "0"
+          SECRET_KEY: "ci-only-not-a-real-secret-key-value-used-for-checks-only"
+          ALLOWED_HOSTS: "example.up.railway.app"
+          DATABASE_URL: "postgresql://user:pass@127.0.0.1:5432/stock_guard"
+          EMAIL_HOST: "smtp.example.com"
+        run: uv run python manage.py check --deploy
