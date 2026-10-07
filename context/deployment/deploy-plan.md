@@ -242,9 +242,11 @@ Railway artifacts: project `stock-guard` (`36f63c7f-…`), environment `producti
 
 3. **`ALLOWED_HOSTS` blocked the healthcheck.** Railway's internal healthcheck probes with a Host header not in the plan's allowlist (`stock-guard-production.up.railway.app` pattern). With `DEBUG=False`, Django returns **400 Bad Request** to the probe → healthcheck fails. Resolved by adding `healthcheck.railway.app` and the private domain: final value `ALLOWED_HOSTS=stock-guard-production.up.railway.app,healthcheck.railway.app,stock-guard.railway.internal`.
 
-### Phase 3 blocker (HUMAN GATE): Railway GitHub App not authorised
+### Phase 3 blocker (RESOLVED 2026-10-07): Railway GitHub App not authorised
 
-`deploymentTriggerCreate` for `mat0714/10-x-devs-stock-guard` returns **"Cannot create deployment trigger … because no one in the project has access to it"** — the Railway GitHub App is not installed/authorised for the repo. **Consequence: there is no GitHub auto-deploy trigger; pushes to `main` do NOT deploy** (verified: empty commit `6e20588` produced no deployment). D2's "Railway native GitHub auto-deploy" contract is **not yet in effect**. To complete it: install the Railway GitHub App on the repo (https://railway.com/account → GitHub, or the "Connect repo" prompt), then re-run `deploymentTriggerCreate`. Until then, deploys require `railway up --service stock-guard --ci` (which uses local upload, not GitHub).
+Initial `deploymentTriggerCreate` for `mat0714/10-x-devs-stock-guard` returned **"Cannot create deployment trigger … because no one in the project has access to it"** — the Railway GitHub App was not installed/authorised for the repo, so no auto-deploy trigger existed and pushes to `main` did NOT deploy.
+
+**Resolved:** the repo owner authorised the Railway GitHub App. `deploymentTriggerCreate` then succeeded (trigger `d64a28ae-…`, provider `github`, repo `mat0714/10-x-devs-stock-guard`, branch `main`). **Verified end-to-end:** an empty commit (`6311782`) pushed to `main` auto-triggered deployment `f0961361` from that commit, which reached `SUCCESS`; `/health/` → 200. **D2's "Railway native GitHub auto-deploy on `main`" contract is now in effect** — pushes to `main` deploy without `railway up`.
 
 ### Deviations applied during Phase 2–4
 
@@ -269,6 +271,8 @@ Railway artifacts: project `stock-guard` (`36f63c7f-…`), environment `producti
 | `DEBUG=False` in prod | ✅ clean 404, no debug page |
 | Postgres TLS (`ssl_require=True`) | ✅ migrate ran against Postgres with no TLS error |
 | Builder pin check (D7) | ❌ **FAILED** — builder is `DOCKERFILE`, not RAILPACK (finding #1) |
+
+**Phase 3 outcome:** ✅ auto-deploy trigger created and verified — push to `main` → deployment `f0961361` → SUCCESS.
 
 ---
 
