@@ -1,10 +1,10 @@
 # Dormant fallback builder for Railway.
 #
-# Railpack is the PRIMARY builder for this service. Railway "always builds with
-# a Dockerfile if it finds one", so this file only takes effect if the Railway
-# service builder is explicitly set to DOCKERFILE. It exists purely as a
-# recoverable fallback if Railpack regresses; leave the service pinned to
-# RAILPACK (see deploy-plan.md D7 / Phase 2.5) unless you need to switch.
+# Railpack is the intended PRIMARY builder for this service, but Railway
+# auto-detects a Dockerfile and prefers it whenever one is present (verified
+# 2026-10-07: a local `railway up` built via this Dockerfile even with the
+# service builder pinned to RAILPACK). Kept as a working, correct build path so
+# either builder produces a reachable container.
 FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
@@ -22,4 +22,6 @@ COPY . .
 
 RUN uv run python manage.py collectstatic --noinput
 
-CMD ["uv", "run", "gunicorn", "--bind", "0.0.0.0:8000", "stock_guard.wsgi:application"]
+# Use the shell form so $PORT is expanded at runtime; Railway injects the
+# port it expects the container to listen on.
+CMD uv run gunicorn --bind 0.0.0.0:${PORT:-8000} stock_guard.wsgi:application
