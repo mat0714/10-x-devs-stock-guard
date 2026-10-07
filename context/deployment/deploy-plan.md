@@ -213,6 +213,21 @@ railway logs --tail              # stream build + runtime logs
 
 ---
 
+## Execution log — Phase 1 completed (2026-10-07)
+
+Branch renamed `master` → `main` (and remote default updated) to match D2/Phase 3 and the CI trigger. Phase 1 landed as commit `Productionize scaffold for Railway deploy (Phase 1)`; CI run `success` (14s).
+
+**Two deviations from the written Phase 1, both required to keep the gate green:**
+
+1. **`pyproject.toml` dependency versions pinned with floors** (`gunicorn>=23.0.0`, `dj-database-url>=3.0.0`, `whitenoise>=6.8.0`, `psycopg[binary]>=3.2.0`). Resolved to gunicorn 26.2.0, dj-database-url 3.1.2, whitenoise 6.12.0, psycopg 3.3.6 in `uv.lock` — the plan's "gunicorn 26.x is compatible with Python 3.12" note held.
+2. **`check --deploy` hard-fails on `mail.E001`.** Django 6.1 promotes "console email backend in the default MAILERS entry" from a warning to an **ERROR**, so the plan's "leave console for now / tolerate env-gated warnings" (1.3, CI step 8) would have failed the gate. Resolution: `settings.py` now selects an **SMTP backend when `EMAIL_HOST` is set**, else console. CI step 8 runs with production-shaped env (`DEBUG=0`, dummy `SECRET_KEY`/`ALLOWED_HOSTS`/`DATABASE_URL`, `EMAIL_HOST`) so the deploy checklist reflects production; only `security.W004` (HSTS) and `security.W008` (SSL redirect) remain — warnings, exit 0, both already in the plan's deferred hardening list.
+
+Local verification (Phase 1.7) all green: `check` clean, `makemigrations --check` clean, `collectstatic` 130 files OK, `check --deploy` exit 0 under prod-shaped env, `/health/` → 200 `ok`, `/admin/` → 302.
+
+**Railway CLI** installed to `~/.local/npm-global/bin` (version 5.63.4) because the system npm prefix is root-owned. `railway login` is **not yet done** — Phase 2 onward is blocked on that human gate.
+
+---
+
 ## Human-only runbook (advisory — DO NOT be automated)
 
 These remain human panel actions per the infra doc's approval boundary. The agent should surface them as runbook steps, never execute them.
