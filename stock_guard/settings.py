@@ -10,7 +10,10 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
+import os
 from pathlib import Path
+
+import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -19,13 +22,24 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-+4mhx9fvrm-me5zx%r@gl4m3gsiu%hf6xbfqf@)_y#=-ph*23_'
+# This value is a dev-only sentinel. It is only used when SECRET_KEY is absent
+# from the environment, i.e. during local development. In production SECRET_KEY
+# must be injected as an env var; a missing key fails the start loudly rather
+# than silently running with the committed insecure value.
+_DEV_INSECURE_SECRET_KEY = 'django-insecure-+4mhx9fvrm-me5zx%r@gl4m3gsiu%hf6xbfqf@)_y#=-ph*23_'
+
+SECRET_KEY = os.environ.get('SECRET_KEY', _DEV_INSECURE_SECRET_KEY)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# Production default is False. The dev fallback only flips DEBUG on when the
+# secret key is the committed dev sentinel, so a prod deploy missing SECRET_KEY
+# fails rather than accidentally exposing a debug page.
+DEBUG = os.environ.get('DEBUG', '').lower() in ('1', 'true', 'yes')
 
-ALLOWED_HOSTS = []
+if SECRET_KEY == _DEV_INSECURE_SECRET_KEY:
+    DEBUG = True
+
+ALLOWED_HOSTS = [host for host in os.environ.get('ALLOWED_HOSTS', '').split(',') if host]
 
 
 # Application definition
@@ -41,6 +55,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -72,12 +87,24 @@ WSGI_APPLICATION = 'stock_guard.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+# In production DATABASE_URL (injected by Railway) points at Postgres;
+# dj-database-url parses it and enables connection reuse plus TLS.
+# Locally (no DATABASE_URL) we keep SQLite as the dev default.
+if os.environ.get('DATABASE_URL'):
+    DATABASES = {
+        'default': dj_database_url.config(
+            conn_max_age=600,
+            conn_health_checks=True,
+            ssl_require=True,
+        ),
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 
 # Password validation
@@ -115,13 +142,39 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+
+# Security
+# Railway terminates HTTPS at its proxy; trust its forwarded-proto header and
+# mark cookies secure outside local development.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+CSRF_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SECURE = not DEBUG
 
 
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
-
-MAILERS = {
-    'default': {
-        'BACKEND': 'django.core.mail.backends.console.EmailBackend',
-    },
-}
+#
+# Django 6.1 flags the console backend as a deploy ERROR (mail.E001). The PRD
+# has no email requirement in MVP, but the SMTP backend is selected whenever
+# EMAIL_HOST is configured so `check --deploy` passes and a future email feature
+# needs no settings change; console stays the local-dev default.
+if os.environ.get('EMAIL_HOST'):
+    MAILERS = {
+        'default': {
+            'BACKEND': 'django.core.mail.backends.smtp.EmailBackend',
+            'HOST': os.environ.get('EMAIL_HOST'),
+            'PORT': int(os.environ.get('EMAIL_PORT', '587')),
+            'USERNAME': os.environ.get('EMAIL_USER'),
+            'PASSWORD': os.environ.get('EMAIL_PASSWORD'),
+            'USE_TLS': os.environ.get('EMAIL_USE_TLS', 'true').lower() in ('1', 'true', 'yes'),
+        },
+    }
+else:
+    MAILERS = {
+        'default': {
+            'BACKEND': 'django.core.mail.backends.console.EmailBackend',
+        },
+    }

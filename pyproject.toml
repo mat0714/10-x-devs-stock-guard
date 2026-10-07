@@ -4,4 +4,14 @@ version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
     "django>=6.1.1",
+    "gunicorn>=23.0.0",
+    "dj-database-url>=3.0.0",
+    "whitenoise>=6.8.0",
+    "psycopg[binary]>=3.2.0",
 ]
+
+# Dev-only tooling (pytest, mypy, ruff) must go here, never in [project].dependencies,
+# so that `uv sync --frozen --no-dev` used by CI and the Railpack build never ships
+# test tooling into the production image.
+[dependency-groups]
+dev = []
