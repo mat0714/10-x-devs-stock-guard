@@ -1,10 +1,10 @@
-# Dormant fallback builder for Railway.
+# Canonical build path for Railway.
 #
-# Railpack is the intended PRIMARY builder for this service, but Railway
-# auto-detects a Dockerfile and prefers it whenever one is present (verified
-# 2026-10-07: a local `railway up` built via this Dockerfile even with the
-# service builder pinned to RAILPACK). Kept as a working, correct build path so
-# either builder produces a reachable container.
+# Railway auto-detects and PREFERS a committed Dockerfile over its Railpack
+# builder, regardless of the service's builder setting (verified 2026-10-07:
+# every deployment reports `builder: DOCKERFILE`, even with the service builder
+# pinned to RAILPACK). This Dockerfile is therefore the real build path, not a
+# fallback. To switch to Railpack, delete this file from the repo.
 FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
