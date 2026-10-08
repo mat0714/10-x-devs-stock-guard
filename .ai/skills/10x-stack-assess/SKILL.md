@@ -4,7 +4,7 @@ description: >
   Assess an existing project's stack for agent-friendliness against the 4
   quality gates (typed, convention-based, popular, well-documented); writes
   context/foundation/stack-assessment.md with per-component scores, gaps, and
-  ready-to-paste CLAUDE.md/AGENTS.md entries. Trigger phrases: "assess my
+  ready-to-paste the project's AI configuration file (AGENTS.md) entries. Trigger phrases: "assess my
   stack", "is my stack agent-friendly", "oceń mój stack", "stack assessment".
   Use AFTER /10x-prd (brownfield), BEFORE /10x-health-check.
 ---
@@ -15,7 +15,7 @@ This skill is the brownfield counterpart to `/10x-tech-stack-selector`. Where te
 
 The skill sits in the brownfield chain: `/10x-shape → /10x-prd → /10x-stack-assess → /10x-health-check`. Its single job: evaluate the existing stack against the quality gates and produce a structured assessment with concrete compensation strategies.
 
-The core brownfield value is the **compensation path** — when a gate fails, the skill doesn't recommend replacing the stack. It documents what to add to instruction files (the project's AI configuration file (AGENTS.md)) so the agent can work effectively despite the gap.
+The core brownfield value is the **compensation path** — when a gate fails, the skill doesn't recommend replacing the stack. It documents what to add to instruction files (the project's AI configuration file (AGENTS.md)) so the AI assistant can work effectively despite the gap.
 
 ## When to use, when to skip
 
@@ -69,7 +69,7 @@ If markers are found, proceed to Step 1.
 
 ### Step 1 — Detect stack components
 
-Inspect project files to identify the stack. The detection is file-driven — inspect what's on disk, don't guess.
+Read project files to identify the stack. The detection is file-driven — read what's on disk, don't guess.
 
 **Detection sources by language family:**
 
@@ -88,7 +88,7 @@ Inspect project files to identify the stack. The detection is file-driven — in
 
 - CI/CD: `.github/workflows/`, `.gitlab-ci.yml`, `Jenkinsfile`, `.circleci/config.yml`, `cloudbuild.yaml`
 - Deployment: `Dockerfile`, `docker-compose.yml`, `fly.toml`, `vercel.json`, `netlify.toml`, `wrangler.toml`, `render.yaml`, `railway.json`, `Procfile`
-- Instruction files: the project's AI configuration file (AGENTS.md), `.cursor/rules`, `.github/copilot-instructions.md`
+- Instruction files: the project's AI configuration file (AGENTS.md), the AI tool's configuration directory, `.github/copilot-instructions.md`
 - Config quality: `.editorconfig`, `.prettierrc*`, `.eslintrc*`, `tsconfig.json` (strict mode check)
 
 Echo the detected stack back to the user:
@@ -107,8 +107,9 @@ Detected stack:
 
 Ask the user: "Is this detection accurate? Anything missing or wrong?"
 
-- Accurate — proceed (Recommended): Continue with this detected stack.
-- Correct something: I'll fix the detection before scoring.
+Offer these options:
+- **Accurate — proceed (Recommended)**: Continue with this detected stack.
+- **Correct something**: I'll fix the detection before scoring.
 
 If "Correct something": ask which component to correct, apply the override in memory, proceed.
 
@@ -163,7 +164,7 @@ Legend: ✓ = pass, ✗ = fail, ~ = partial, — = not applicable
 
 ### Step 3 — Identify compensation strategies
 
-For each failed gate, produce a concrete compensation strategy. Compensation means specific entries to add to instruction files (the project's AI configuration file (AGENTS.md)) so the agent can work effectively despite the gap.
+For each failed gate, produce a concrete compensation strategy. Compensation means specific entries to add to instruction files (the project's AI configuration file (AGENTS.md)) so the AI assistant can work effectively despite the gap.
 
 **Compensation templates by gate failure:**
 
@@ -183,7 +184,7 @@ For each failed gate, produce a concrete compensation strategy. Compensation mea
 - Add framework-specific idiom examples to the project's AI configuration file (AGENTS.md)
 - Link to official docs in instruction file
 - Add "prefer X pattern over Y" rules for framework-specific choices
-- Note that the agent may need more steering for this framework
+- Note that the AI assistant may need more steering for this framework
 
 **Well-documented: fail** →
 - Pin framework version in instruction file
@@ -199,9 +200,9 @@ Based on the scoring matrix and available compensation:
 
 - **ready**: all gates pass for all components. The stack is agent-friendly out of the box.
 - **ready-with-compensation**: some gates fail but all failures have clear compensation strategies. The stack works with documented conventions.
-- **significant-friction**: multiple gates fail AND compensation is heavy (e.g., untyped language + non-convention framework + niche in training data). The agent will need substantial steering.
+- **significant-friction**: multiple gates fail AND compensation is heavy (e.g., untyped language + non-convention framework + niche in training data). The AI assistant will need substantial steering.
 
-The verdict is informational, not blocking. Even `significant-friction` doesn't mean "switch stacks" — it means "budget more time for instruction file authoring and expect more agent correction cycles."
+The verdict is informational, not blocking. Even `significant-friction` doesn't mean "switch stacks" — it means "budget more time for instruction file authoring and expect more AI assistant correction cycles."
 
 ### Step 5 — Write assessment
 
@@ -213,9 +214,10 @@ test -f context/foundation/stack-assessment.md
 
 If the file exists, ask the user: "context/foundation/stack-assessment.md already exists. How would you like to proceed?"
 
-- Overwrite (Recommended): Replace the existing assessment. The prior version is lost unless committed.
-- Save as stack-assessment-v2.md: Preserve history. New assessment lands at the next available version slot.
-- Abort: Exit without writing. The conversation assessment is preserved in chat only.
+Offer these options:
+- **Overwrite (Recommended)**: Replace the existing assessment. The prior version is lost unless committed.
+- **Save as stack-assessment-v2.md**: Preserve history. New assessment lands at the next available version slot.
+- **Abort**: Exit without writing. The conversation assessment is preserved in chat only.
 
 Build the output file:
 
@@ -255,7 +257,7 @@ gates_failed: <N>
 
 ### Recommended Instruction File Additions
 
-<ready-to-paste project's AI configuration file (AGENTS.md) entries for each compensation strategy, formatted as markdown rule blocks the user can copy directly>
+<ready-to-paste the project's AI configuration file (AGENTS.md) entries for each compensation strategy, formatted as markdown rule blocks the user can copy directly>
 
 ## Summary
 
