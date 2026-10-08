@@ -16,8 +16,8 @@
 
 The infra doc was researched 2026-09-25; two of its literal instructions are now stale against current Railway docs (verified 2026-10-05). This plan corrects both rather than propagating them:
 
-1. **"Use Railway's Config-as-Code"** — Config-as-Code (`railway.json`/`railway.toml`) is **deprecated with a hard 2026-12-01 cutoff, and new services CANNOT opt into it at all.** A fresh Railway service created today has no CaC path. The replacement (Infrastructure as Code, `.railway/railway.ts`) is GA but requires a Node SDK (`npm install railway`) — toolchain contamination for a deliberately-Python repo; the Python variant (`.railway/railway.py`) is beta. **This plan uses dashboard service settings instead** (see D13). Record this in `context/foundation/lessons.md` if the cohort wants the infra doc patched.
-2. **Railpack's default Django start command** (verified from railpack.com/languages/python) is `python manage.py migrate && gunicorn {appName}:application` — with **no `--bind` flag**. Gunicorn defaults to `127.0.0.1:8000`, which Railway's router cannot reach. Compare Railpack's Flask default (`gunicorn --bind 0.0.0.0:${PORT:-8000} main:app`), which binds correctly. **Any Django deploy on Railway must override `startCommand` with an explicit bind** — the infra doc's literal startCommand omits it and would produce a deploy that "runs" but 502s.
+1. **"Use Railway's Config-as-Code"** — Config-as-Code (`railway.json`/`railway.toml`) is **deprecated with a hard 2026-12-01 cutoff, and new services CANNOT opt into it at all.** A fresh Railway service created today has no CaC path. The replacement (Infrastructure as Code, `.railway/railway.ts`) is GA but requires a Node SDK (`npm install railway`) — toolchain contamination for a deliberately-Python repo; the Python variant (`.railway/railway.py`) is beta. **This plan uses dashboard service settings + the committed `Dockerfile` instead** (see D13; `infrastructure.md` Getting Started step 4 patched 2026-10-08).
+2. **Railpack's default Django start command** (verified from railpack.com/languages/python) is `python manage.py migrate && gunicorn {appName}:application` — with **no `--bind` flag**. Gunicorn defaults to `127.0.0.1:8000`, which Railway's router cannot reach. Compare Railpack's Flask default (`gunicorn --bind 0.0.0.0:${PORT:-8000} main:app`), which binds correctly. **Any Django deploy on Railway must bind `0.0.0.0:$PORT` explicitly** — the infra doc's literal startCommand omits it and would produce a deploy that "runs" but 502s. (This plan ultimately built via Dockerfile rather than Railpack, but the explicit bind applies equally — see D9 and finding #2: the bind AND the domain `targetPort` must both match Railway's injected `PORT=8080`.)
 
 ## Decisions (locked during planning)
 
@@ -28,18 +28,18 @@ The infra doc was researched 2026-09-25; two of its literal instructions are now
 | D3 | Settings split | Single `settings.py`, env-driven (no settings package, no `--settings` flag) |
 | D4 | Static files | WhiteNoise + `CompressedManifestStaticFilesStorage`, served by gunicorn |
 | D5 | Postgres driver | `psycopg[binary]` (v3). **Rationale (corrected):** Railpack auto-provides `libpq-dev`+`libpq5`, so libpq is NOT the reason; `[binary]` bundles the precompiled C extension, avoiding any compiler-toolchain dependency during build. Bare `psycopg` would also work (libpq is present) but couples the build to the toolchain. |
-| D6 | Python pin | `.python-version` = `3.12` locally + Railway var `RAILPACK_PYTHON_VERSION=3.12`. **Note (corrected):** Railpack reads `.python-version` directly (per its version-resolution order), so the var is *redundant-but-explicit* hardening — kept because it survives if `.python-version` is ever removed, and documents builder intent. Not "belt-and-suspenders" against a gap. |
-| D7 | Railpack hedge | Add minimal fallback `Dockerfile` (dormant; Railpack stays primary via `uv.lock` detection. Railway always builds with a Dockerfile if present — so this Dockerfile MUST be structured to *not* accidentally become the active builder; verify in service settings that builder = RAILPACK after first deploy.) |
+| D6 | Python pin | `.python-version` = `3.12` is the **active** pin (consumed by the Dockerfile via `uv sync`, which resolves 3.12; also honored by local `uv`). The `RAILPACK_PYTHON_VERSION=3.12` var was **deleted 2026-10-08** — inert under Dockerfile-as-builder (D7). If Railpack is ever restored (delete the Dockerfile), re-add this var. |
+| D7 | Builder | **RESOLVED 2026-10-08: the `Dockerfile` IS the builder — retracted as a "dormant fallback."** Original intent was Railpack-primary with a dormant Dockerfile hedge; live deploys falsified it (finding #1, Phase 2–4 log): Railway auto-detects and prefers a committed Dockerfile regardless of the service `builder=RAILPACK` setting, so every deployment reports `builder: DOCKERFILE`. Decision: **accept the Dockerfile as the canonical, version-controlled build path** (it works, and unlike Railpack it can't silently regress on a builder update). The committed `Dockerfile` is therefore load-bearing, not a hedge. The Railpack-specific vars (`RAILPACK_*`) are inert and have been **deleted** from the Railway service (2026-10-08). To ever switch to Railpack, delete `Dockerfile` from the repo — cannot have both. |
 | D8 | CI gate content | `uv sync --frozen --no-dev` + `manage.py check` + `makemigrations --check --dry-run` + **`collectstatic --noinput`** + **`check --deploy`** (all on SQLite — no Postgres service container). The last two close the CI/prod parity gap for static-config and deploy-checklist failures that would otherwise pass CI green and ship to prod on the first `main` merge. Postgres-specific migration/SSL surface is intentionally NOT covered in CI — the scaffold has only Django built-in migrations (identical on SQLite/Postgres); revisit when feature migrations land. No ruff/mypy/tests yet (no feature code). |
 | D8a | Dev-dep group convention | Add an empty `[dependency-groups] dev = []` to `pyproject.toml` now. Future test/lint/type deps (pytest, mypy, ruff) go in `dev`, NEVER in `dependencies`. Makes the `--no-dev` flag (CI + Railpack build) meaningful from day-1 and prevents the latent trap of shipping test tooling into the prod runtime image. |
-| D9 | Migrate pattern | `preDeployCommand` (Railway field, takes a **list**) runs `migrate --noinput`; `startCommand` runs `collectstatic --noinput && gunicorn --bind 0.0.0.0:${PORT:-8000} stock_guard.wsgi:application` only. **The `--bind` is load-bearing** — fixes the Railpack-default-omission bug. |
+| D9 | Migrate pattern | `preDeployCommand` (Railway field, takes a **list**) runs `migrate --noinput`; the container start is governed by the Dockerfile `CMD`. **RESOLVED 2026-10-08 (see finding #2):** the Railway `startCommand` override was **cleared** (empty) so the Dockerfile `CMD` governs; the `CMD` is shell-form `uv run gunicorn --bind 0.0.0.0:${PORT:-8000} stock_guard.wsgi:application`. The `--bind 0.0.0.0:${PORT:-8000}` is load-bearing **and** Railway injects `PORT=8080`, so the service domain `targetPort` must be `8080` to match — the explicit bind alone is NOT sufficient (the Router defaulted to `8000` and 502'd the healthcheck). `collectstatic` runs as a Dockerfile build step, not in the start command. |
 | D10 | `ALLOWED_HOSTS` | Env var comma-list (`ALLOWED_HOSTS=stock-guard-*.up.railway.app`); dev default `[]` |
 | D11 | Backups | Deferred — ship `sslmode=require` only; nightly `pg_dump`→external bucket is a follow-up milestone (DB empty after scaffold deploy) |
 | D12 | Agent ops/MCP | CLI-only now; Railway MCP wiring deferred (no recurring query pattern yet to justify MCP schema cost) |
-| D13 | Railway config source | **Dashboard service settings** (no committed `railway.json`/`railway.toml`/`.railway/*`). CaC is unavailable to new services; IaC contaminates the Python repo with Node or bets on beta Python authoring. Tradeoff accepted: config is not version-controlled (drift risk) — mitigate by recording the exact settings in this plan as the audit trail. |
+| D13 | Railway config source | **Dashboard service settings + committed `Dockerfile`** (no `railway.json`/`railway.toml`/`.railway/*`). CaC is unavailable to new services. IaC (`.railway/railway.ts`) would contaminate the Python repo with Node; the Python variant is beta — not adopted. Note: because the Dockerfile (D7) is the real build path, the *build* is version-controlled; only the *deploy settings* (`preDeployCommand`, `healthcheckPath`, domain `targetPort`) live in the dashboard — drift risk is narrower than originally stated. Exact values recorded in Phase 2.5. |
 | D14 | Healthcheck | Add a `/health/` view (200, no DB/auth) to `urls.py`; point Railway `healthcheckPath` at `/health/`. Catches the "up-but-unreachable" bind-bug failure mode and drives deploy-success / auto-restart. |
 | D15 | DB connection robustness | `dj_database_url.config(conn_max_age=600, conn_health_checks=True, ssl_require=True)`. `conn_health_checks=True` is the current dj-database-url README recommendation whenever `conn_max_age` is non-zero; mitigates Railway's "DB service restart briefly drops connections" unknown-unknown. |
-| D16 | WSGI app resolution | Set `RAILPACK_DJANGO_APP_NAME=stock_guard.wsgi` as a Railway var. Removes reliance on Railpack scanning settings.py for `WSGI_APPLICATION` (scan works, but explicit is safer against a future settings refactor). |
+| D16 | WSGI app resolution | ~~Set `RAILPACK_DJANGO_APP_NAME=stock_guard.wsgi` as a Railway var.~~ **RETRACTED 2026-10-08:** inert once D7 resolved to Dockerfile-as-builder (the var only affects Railpack). Deleted from the Railway service; the Dockerfile `CMD` names `stock_guard.wsgi:application` explicitly. |
 
 ## Boundary: what this plan does NOT do
 
@@ -90,7 +90,7 @@ Then run `uv lock` to regenerate `uv.lock` with the new deps pinned.
 
 **1.2 `.python-version` — new file**
 
-Pin `3.12` so local `uv sync` resolves 3.12 (uv honors this file). Documents local-dev intent. Railpack also reads this file (per D6 note), so `RAILPACK_PYTHON_VERSION` is redundant-but-explicit hardening on top.
+Pin `3.12` so local `uv sync` resolves 3.12 (uv honors this file). The Dockerfile's `uv sync` consumes this file, so it is the active Python pin (the Railpack `RAILPACK_PYTHON_VERSION` var was dropped — D6/D7).
 
 **1.3 `stock_guard/settings.py` — env-driven productionization**
 
@@ -112,9 +112,9 @@ Keep the single-file structure. Apply these changes (exact semantics, not litera
 
 Add a minimal health endpoint. A function-based view returning `HttpResponse("ok")` (200, no DB query, no auth). Wire it at `path("health/", ...)`. Keep `admin/` as-is. This is the only non-config source change in Phase 1 — it exists solely so Railway's healthcheck has a real probe target.
 
-**1.5 `Dockerfile` — minimal fallback (new file, dormant)**
+**1.5 `Dockerfile` — canonical build path (new file)**
 
-Railpack stays the active builder ONLY if Railway's service `builder` setting = RAILPACK. **Critical:** Railway's docs say "Railway will always build with a Dockerfile if it finds one" — so after first deploy, verify in service settings that the builder is explicitly pinned to RAILPACK, not auto/Dockerfile. The Dockerfile exists as a recoverable fallback if Railpack regresses; toggle the service to use it only then. Keep it small: `python:3.12-slim` base, `pip install uv`, `uv sync --frozen --no-dev`, `DJANGO_SETTINGS_MODULE`, `collectstatic --noinput` as a build step, `CMD gunicorn --bind 0.0.0.0:${PORT:-8000} stock_guard.wsgi:application`. No multi-stage complexity.
+> **As-executed note (2026-10-08):** originally written as a "dormant fallback" with Railpack primary; finding #1 showed Railway always prefers a committed Dockerfile, so this file IS the builder (D7 resolved). Kept small: `python:3.12-slim` base, uv copied from `ghcr.io/astral-sh/uv`, `uv sync --frozen --no-dev`, `DJANGO_SETTINGS_MODULE`, `collectstatic --noinput` as a build step, shell-form `CMD uv run gunicorn --bind 0.0.0.0:${PORT:-8000} stock_guard.wsgi:application`. No multi-stage complexity.
 
 **1.6 `.github/workflows/ci.yml` — pre-merge gate (new file)**
 
@@ -127,7 +127,7 @@ Steps:
 4. `uv sync --frozen --no-dev`
 5. `uv run python manage.py check` (Django system checks — catches config/static/middleware errors)
 6. `uv run python manage.py makemigrations --check --dry-run` (fails if model migration drift exists — guards against a merge shipping unmigrated schema)
-7. `uv run python manage.py collectstatic --noinput` (D8 parity — catches `CompressedManifestStaticFilesStorage` misconfig pre-merge; prod `startCommand` runs the same command)
+7. `uv run python manage.py collectstatic --noinput` (D8 parity — catches `CompressedManifestStaticFilesStorage` misconfig pre-merge; the Dockerfile build runs the same command)
 8. `uv run python manage.py check --deploy` (D8 parity — surfaces deploy-checklist warnings: `DEBUG`, `SECRET_KEY`, `ALLOWED_HOSTS`, secure cookies. Tolerate warnings that are env-gated; FAIL on criticals. Note: `check --deploy` warns when `DEBUG=False` and `ALLOWED_HOSTS=[]` — in CI both are the dev defaults, so expect those specific warnings and don't fail the job on them; fail only on warnings that indicate a real misconfiguration the implementation agent should judge.)
 
 No ruff/mypy/tests in this workflow — there's no feature code to lint/type/check yet. Add them when feature apps land (AGENTS.md says "wire that up before relying on a CI check"; the workflow file is structured so those jobs slot in later).
@@ -164,12 +164,12 @@ railway add                     # choose PostgreSQL; Railway auto-provisions DAT
 
 **2.3 Set Railway variables (non-secret config) — via `railway variables set` or dashboard**
 ```
-RAILPACK_PYTHON_VERSION=3.12
-RAILPACK_DJANGO_APP_NAME=stock_guard.wsgi
 DJANGO_SETTINGS_MODULE=stock_guard.settings
-ALLOWED_HOSTS=<your-app>.up.railway.app   # the generated Railway domain; append a custom domain later
+ALLOWED_HOSTS=<your-app>.up.railway.app,healthcheck.railway.app,<service>.railway.internal
 ```
 `DEBUG` is intentionally **not set** (defaults to `False`).
+
+> **Corrected 2026-10-08:** `RAILPACK_PYTHON_VERSION` / `RAILPACK_DJANGO_APP_NAME` are NOT set — the Dockerfile is the builder (D7), so they are inert. Python version comes from `.python-version` via the Dockerfile. `ALLOWED_HOSTS` must include `healthcheck.railway.app` and the private domain or Railway's internal healthcheck probe gets a 400 (finding #3, Phase 2–4 log).
 
 **2.4 Set Railway variables (secrets — human generates/pastes, not the agent)**
 ```bash
@@ -179,14 +179,15 @@ railway variables set SECRET_KEY=<pasted-generated-value>
 
 **2.5 Configure service settings via dashboard (D13 — NOT a committed config file)**
 
-Set these in the service's Settings → Deploy panel (these are the audit-trail values; record them here since they're not version-controlled):
-- `builder` = **RAILPACK** (explicitly pin — Railway auto-builds with Dockerfile if present per D7 caveat)
-- `preDeployCommand` = `["uv run python manage.py migrate --noinput"]` (note: this field takes a **list** per Railway docs)
-- `startCommand` = `uv run python manage.py collectstatic --noinput && gunicorn --bind 0.0.0.0:${PORT:-8000} stock_guard.wsgi:application` (the `--bind` is load-bearing — see D9)
+Set these in the service's Settings → Deploy panel (these are the audit-trail values; record them here since they're not version-controlled). **Values below are the as-deployed reality (2026-10-08), corrected from the original plan:**
+- `builder` = **DOCKERFILE** (Railway auto-detects the committed `Dockerfile` and prefers it over the `RAILPACK` service setting — D7 resolved; see finding #1)
+- `preDeployCommand` = `["uv run python manage.py migrate --noinput"]` (this field takes a **list** per Railway docs)
+- `startCommand` = **empty** — cleared so the Dockerfile `CMD` governs. The `CMD` is shell-form `uv run gunicorn --bind 0.0.0.0:${PORT:-8000} stock_guard.wsgi:application`.
 - `healthcheckPath` = `/health/` (D14)
-- `healthcheckTimeout` = 100 (seconds; reasonable for a cold gunicorn start)
+- `healthcheckTimeout` = 100 (seconds)
+- domain `targetPort` = **8080** (must match Railway's injected `PORT=8080`; the Router default `8000` 502'd the healthcheck — finding #2)
 
-Railpack auto-detects `pyproject.toml` + `uv.lock` and runs `uv sync --frozen --no-dev` — the fallback Dockerfile stays dormant unless Railpack breaks.
+> **PB (D7):** the Dockerfile is the real build path — it runs `uv sync --frozen --no-dev` and `collectstatic` at build time. `collectstatic` therefore does NOT run in the start command. To switch to Railpack, delete `Dockerfile` from the repo.
 
 ### Phase 3 — Connect Railway's GitHub auto-deploy
 
@@ -200,16 +201,16 @@ railway logs --tail              # stream build + runtime logs
 
 ### Phase 4 — Verification (definition of done)
 
-- [ ] `railway up` completes (Railpack builds `uv sync --frozen --no-dev` green; logs show Python 3.12 resolved, not 3.13).
+- [ ] `railway up` completes (Dockerfile builds `uv sync --frozen --no-dev` green; logs show Python 3.12 resolved, not 3.13).
 - [ ] `preDeployCommand` migrate hook shows Django migration output in logs (applies `auth`/`admin`/`contenttypes`/`sessions` built-in tables to Postgres).
-- [ ] `collectstatic --noinput` completes with no errors in the `startCommand` log.
-- [ ] **Reachability (the bind-bug regression test):** `curl -i https://<your-app>.up.railway.app/health/` returns `200 ok`. If this 502s/timeout while logs show gunicorn running, the `--bind` is wrong — the healthcheck should have caught this first.
+- [ ] `collectstatic --noinput` completes with no errors in the **build** log (it is a Dockerfile build step, not a start-command step).
+- [ ] **Reachability (the bind/port regression test):** `curl -i https://<your-app>.up.railway.app/health/` returns `200 ok`. If this 502s/timeout while logs show gunicorn running, check BOTH the `--bind 0.0.0.0:$PORT` AND the domain `targetPort` (= 8080) — the healthcheck should have caught this first (finding #2).
 - [ ] Railway service shows "healthy" (healthcheck passing on `/health/`).
 - [ ] `/admin/` loads **with CSS** (visually confirm a styled login form — confirms WhiteNoise static serving, not just a 200 with broken assets).
 - [ ] `manage.py check --deploy` surfaces no critical warnings (one-off `railway ssh` + `uv run python manage.py check --deploy`; `SECRET_KEY` notices clean since env-injected).
 - [ ] Confirm `DEBUG=False` in prod: request a non-existent URL → production 404 template, not the yellow debug page.
 - [ ] Postgres TLS: Django connects without error (`ssl_require=True` enforces; a TLS failure shows in logs at first request).
-- [ ] **Builder pin check (D7 caveat):** service Settings shows `builder = RAILPACK`, not auto/Dockerfile — confirms the fallback Dockerfile isn't accidentally the active builder.
+- [ ] **Builder check (D7 resolved):** service Settings shows `builder = DOCKERFILE` and the committed `Dockerfile` is the active build path — this is now the *expected* state, not a failure. The `RAILPACK_*` vars are absent.
 
 ---
 
@@ -236,7 +237,9 @@ Railway artifacts: project `stock-guard` (`36f63c7f-…`), environment `producti
 
 ### Material findings — the plan's assumptions were wrong in three places
 
-1. **D7 is falsified: Railpack is NOT the active builder.** Every deployment (GitHub and local) reports `builder: DOCKERFILE` — Railway auto-detects and prefers the committed `Dockerfile` regardless of the service `builder: RAILPACK` setting. The "dormant fallback" premise does not hold: the Dockerfile **is** the builder. Consequence: the plan's Railpack-specific `RAILPACK_*` vars are inert, and the `startCommand` override should be treated as Dockerfile-CMD-equivalent. **Recommendation:** either accept the Dockerfile as the real build path (delete the RAILPACK illusion) or remove `Dockerfile` from the repo if Railpack is genuinely wanted — cannot have both.
+> **Close-out (2026-10-08): all three findings resolved.** #1: accepted the Dockerfile as the canonical build path; `RAILPACK_PYTHON_VERSION` + `RAILPACK_DJANGO_APP_NAME` deleted from the Railway service. #2: domain `targetPort=8080` set (deployed). #3: `ALLOWED_HOSTS` includes `healthcheck.railway.app` + private domain (deployed). D7/D9/D13/D16 updated above; Phase 2.3/2.5/4 corrected to the as-deployed values.
+
+1. **D7 is falsified: Railpack is NOT the active builder.** Every deployment (GitHub and local) reports `builder: DOCKERFILE` — Railway auto-detects and prefers the committed `Dockerfile` regardless of the service `builder: RAILPACK` setting. The "dormant fallback" premise does not hold: the Dockerfile **is** the builder. Consequence: the plan's Railpack-specific `RAILPACK_*` vars are inert, and the `startCommand` override should be treated as Dockerfile-CMD-equivalent. **Resolution (2026-10-08):** accepted the Dockerfile as the real, version-controlled build path; deleted the `RAILPACK_*` vars. To ever use Railpack, delete `Dockerfile` — cannot have both.
 
 2. **`startCommand` with `${PORT:-8000}` bound the wrong port.** Railway injects `PORT=8080`, so gunicorn listened on `0.0.0.0:8080`, but the service's Router target port defaulted to `8000` → healthcheck "service unavailable" → deploy FAILED (4 consecutive attempts). Resolved by setting the service domain `targetPort = 8080` to match `$PORT`. This was not in the plan; the plan assumed `--bind 0.0.0.0:${PORT:-8000}` was sufficient.
 
@@ -263,16 +266,28 @@ Initial `deploymentTriggerCreate` for `mat0714/10-x-devs-stock-guard` returned *
 |---|---|
 | `railway up` completes | ✅ SUCCESS (`0366c589`, and the `railway up` that first passed) |
 | `preDeployCommand` migrate hook | ✅ logs show "Apply all migrations: admin, auth, contenttypes, sessions" |
-| `collectstatic` in startCommand | ✅ "130 static files copied / 0 unmodified" |
+| `collectstatic` in build log | ✅ "130 static files copied / 0 unmodified" |
 | Reachability `/health/` → 200 ok | ✅ |
 | Service shows "healthy" | ✅ status SUCCESS |
 | `/admin/` loads with CSS | ✅ 302 → login, `base.css` served 200 `text/css` |
 | `check --deploy` in prod | ⚠️ not run in-container (SSH gate); local prod-shaped run exit 0 |
 | `DEBUG=False` in prod | ✅ clean 404, no debug page |
 | Postgres TLS (`ssl_require=True`) | ✅ migrate ran against Postgres with no TLS error |
-| Builder pin check (D7) | ❌ **FAILED** — builder is `DOCKERFILE`, not RAILPACK (finding #1) |
+| Builder check (D7) | ✅ RESOLVED 2026-10-08 — builder is `DOCKERFILE`; accepted as canonical build path, `RAILPACK_*` vars deleted (finding #1 accepted, not a defect) |
 
 **Phase 3 outcome:** ✅ auto-deploy trigger created and verified — push to `main` → deployment `f0961361` → SUCCESS.
+
+---
+
+## Execution log — Close-out of open findings (2026-10-08)
+
+Resolved the one failed Phase 4 verification and the infra-doc staleness item, so the foundation contracts match the running system.
+
+- **D7 builder contradiction — resolved by accepting the Dockerfile.** Took the plan's "accept the Dockerfile as the real build path" branch (not "delete Dockerfile to force Railpack"): the Dockerfile is version-controlled and immune to builder-version drift, and it already deploys green. Actions:
+  - Deleted the two inert Railpack vars from the Railway `stock-guard` service: `RAILPACK_PYTHON_VERSION`, `RAILPACK_DJANGO_APP_NAME` (`railway variable delete …`, both exit 0; re-verified absent). These only affect Railpack, which is not the builder.
+  - Rewrote D6, D7, D9, D13, D16; corrected Phase 2.3, 2.5, 4; updated the Dockerfile header comment ("Canonical build path", not "dormant fallback"); flipped the Phase 4 builder row ❌ → ✅.
+- **Infra-doc staleness — patched in place** (`context/foundation/infrastructure.md`): Getting Started steps 1 and 4 (drop Config-as-Code + `RAILPACK_PYTHON_VERSION`, document the Dockerfile path + `targetPort`), the Recommendation paragraph, the Railpack risk-register row, and the Operational Story approval/rollback lines.
+- **`deploy-plan.md` remains the audit trail**; no Railway service behavior changed except removing dead vars (next deploy rebuilds identically via the Dockerfile).
 
 ---
 
@@ -294,7 +309,7 @@ These remain human panel actions per the infra doc's approval boundary. The agen
 - **Railway IaC adoption** (`.railway/railway.ts` or `.railway/railway.py`): reconsider once (a) the config drift risk materializes, or (b) Python IaC authoring goes GA. Would replace the dashboard-settings approach in D13 with a version-controlled source of truth.
 - **Email backend**: PRD has no email in MVP; console backend stays but is flagged `# TODO` in settings.
 - **`SECURE_HSTS_*`, CSP, and the full `manage.py check --deploy` hardening list**: the basic checklist items above get the deploy out; the long-tail hardening lands with feature work.
-- **Infra-doc patch**: `context/foundation/infrastructure.md` says "Use Railway's Config-as-Code" — now impossible for new services (2026-12-01 cutoff). Re-run `/10x-infra-research` or patch the doc's Operational Story + Getting Started sections to reflect dashboard-settings/IaC.
+- **Infra-doc patch**: ✅ DONE 2026-10-08 — `context/foundation/infrastructure.md` Getting Started (Config-as-Code startup, Railpack startCommand, RAILPACK_PYTHON_VERSION), Operational Story, and Risk Register patched in place to reflect the Dockerfile build path + dashboard settings + the `targetPort` requirement. Git history preserves the original research.
 
 ## Reference paths
 
