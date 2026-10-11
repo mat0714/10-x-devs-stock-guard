@@ -274,12 +274,12 @@ No new models and therefore **no migrations**; the default `auth.User` tables al
 
 #### Automated
 
-- [x] 3.1 Django test suite passes
-- [x] 3.2 Django system checks pass
-- [x] 3.3 Migration drift check is clean
+- [x] 3.1 Django test suite passes — 6deba00
+- [x] 3.2 Django system checks pass — 6deba00
+- [x] 3.3 Migration drift check is clean — 6deba00
 
 #### Manual
 
-- [x] 3.4 Visiting / logged out shows the login screen; logging in shows the placeholder home with the user's email
-- [x] 3.5 The logout button returns to /login/, and browser Back does not re-show the authenticated home
-- [x] 3.6 /register/ is reachable while logged out and / is not
+- [x] 3.4 Visiting / logged out shows the login screen; logging in shows the placeholder home with the user's email — 6deba00
+- [x] 3.5 The logout button returns to /login/, and browser Back does not re-show the authenticated home — 6deba00
+- [x] 3.6 /register/ is reachable while logged out and / is not — 6deba00
