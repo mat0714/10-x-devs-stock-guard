@@ -41,7 +41,7 @@ An individual investor managing several to a dozen-plus positions spends time ev
 
 | ID   | Change ID                  | Outcome (user can …)                                                         | Prerequisites    | PRD refs               | Status   |
 | ---- | -------------------------- | ---------------------------------------------------------------------------- | ---------------- | ---------------------- | -------- |
-| F-01 | account-auth-scaffold      | (foundation) per-account sign-up/login screens live, backed by Django auth  | —                | FR-001, FR-002, Access Control | planning |
+| F-01 | account-auth-scaffold      | (foundation) per-account sign-up/login screens live, backed by Django auth  | —                | FR-001, FR-002, Access Control | in-progress |
 | F-02 | price-data-fetch-boundary  | (foundation) one module fetches a daily-candle series per symbol from a chosen free API, with partial-failure surfacing | —                | FR-008, NFR-04         | blocked  |
 | S-01 | own-watchlist-crud         | user can add, view, and remove stocks on their own private list              | F-01             | FR-003, FR-004, FR-006, US-01 | proposed |
 | S-02 | formation-detection-service| user sees a graded bearish-formation score rendered per scanned position     | F-01, S-01, F-02 | FR-009, FR-010, US-01  | blocked  |
@@ -82,7 +82,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Django ships auth, so this is mostly wiring views/templates and a redirect from `/`; sequenced first because every user-facing slice needs a current user to scope data to. Risk is low.
-- **Status:** planning
+- **Status:** in-progress
 
 ### F-02: Price-data fetch boundary
 

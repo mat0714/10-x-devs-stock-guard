@@ -247,13 +247,13 @@ No new models and therefore **no migrations**; the default `auth.User` tables al
 
 #### Automated
 
-- [ ] 1.1 Django system checks pass
-- [ ] 1.2 No migration drift introduced
-- [ ] 1.3 Static collection succeeds
+- [x] 1.1 Django system checks pass
+- [x] 1.2 No migration drift introduced
+- [x] 1.3 Static collection succeeds
 
 #### Manual
 
-- [ ] 1.4 Server boots and /health/ and /admin/ respond
+- [x] 1.4 Server boots and /health/ and /admin/ respond
 
 ### Phase 2: Registration + login/logout flow
 
