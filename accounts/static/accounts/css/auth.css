@@ -1,0 +1,78 @@
+:root {
+  --auth-bg: #f5f6f8;
+  --auth-surface: #ffffff;
+  --auth-text: #1f2933;
+  --auth-muted: #52606d;
+  --auth-accent: #1a73e8;
+  --auth-border: #d2d6dc;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--auth-bg);
+  color: var(--auth-text);
+}
+
+.auth-shell {
+  max-width: 24rem;
+  margin: 4rem auto;
+  padding: 2rem;
+  background: var(--auth-surface);
+  border: 1px solid var(--auth-border);
+  border-radius: 0.5rem;
+
+  h1 {
+    margin-top: 0;
+    font-size: 1.5rem;
+  }
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+
+    p {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      margin: 0;
+    }
+
+    label {
+      font-weight: 600;
+      font-size: 0.875rem;
+    }
+
+    input {
+      padding: 0.5rem;
+      border: 1px solid var(--auth-border);
+      border-radius: 0.25rem;
+      font-size: 1rem;
+    }
+
+    button {
+      padding: 0.5rem 1rem;
+      border: 0;
+      border-radius: 0.25rem;
+      background: var(--auth-accent);
+      color: #ffffff;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+  }
+
+  .errorlist {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: #b3261e;
+    font-size: 0.875rem;
+  }
+}
+
+.auth-footer {
+  text-align: center;
+  margin-top: 1rem;
+  color: var(--auth-muted);
+}

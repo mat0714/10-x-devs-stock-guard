@@ -247,28 +247,28 @@ No new models and therefore **no migrations**; the default `auth.User` tables al
 
 #### Automated
 
-- [x] 1.1 Django system checks pass
-- [x] 1.2 No migration drift introduced
-- [x] 1.3 Static collection succeeds
+- [x] 1.1 Django system checks pass — 76aeceb
+- [x] 1.2 No migration drift introduced — 76aeceb
+- [x] 1.3 Static collection succeeds — 76aeceb
 
 #### Manual
 
-- [x] 1.4 Server boots and /health/ and /admin/ respond
+- [x] 1.4 Server boots and /health/ and /admin/ respond — 76aeceb
 
 ### Phase 2: Registration + login/logout flow
 
 #### Automated
 
-- [ ] 2.1 Django system checks pass
-- [ ] 2.2 Static collection succeeds and includes the auth stylesheet
+- [x] 2.1 Django system checks pass
+- [x] 2.2 Static collection succeeds and includes the auth stylesheet
 
 #### Manual
 
-- [ ] 2.3 Registering a new email lands the user signed-in on /
-- [ ] 2.4 Logging out via the button returns to /login/
-- [ ] 2.5 Logging in with the same email and password returns to /
-- [ ] 2.6 A duplicate email at sign-up shows a form error, not a 500
-- [ ] 2.7 An over-long email shows a form error, not a 500
+- [x] 2.3 Registering a new email lands the user signed-in on /
+- [x] 2.4 Logging out via the button returns to /login/
+- [x] 2.5 Logging in with the same email and password returns to /
+- [x] 2.6 A duplicate email at sign-up shows a form error, not a 500
+- [x] 2.7 An over-long email shows a form error, not a 500
 
 ### Phase 3: Protected landing & access control + tests
 
