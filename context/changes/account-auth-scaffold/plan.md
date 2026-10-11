@@ -259,27 +259,27 @@ No new models and therefore **no migrations**; the default `auth.User` tables al
 
 #### Automated
 
-- [x] 2.1 Django system checks pass
-- [x] 2.2 Static collection succeeds and includes the auth stylesheet
+- [x] 2.1 Django system checks pass — 6a9f62f
+- [x] 2.2 Static collection succeeds and includes the auth stylesheet — 6a9f62f
 
 #### Manual
 
-- [x] 2.3 Registering a new email lands the user signed-in on /
-- [x] 2.4 Logging out via the button returns to /login/
-- [x] 2.5 Logging in with the same email and password returns to /
-- [x] 2.6 A duplicate email at sign-up shows a form error, not a 500
-- [x] 2.7 An over-long email shows a form error, not a 500
+- [x] 2.3 Registering a new email lands the user signed-in on / — 6a9f62f
+- [x] 2.4 Logging out via the button returns to /login/ — 6a9f62f
+- [x] 2.5 Logging in with the same email and password returns to / — 6a9f62f
+- [x] 2.6 A duplicate email at sign-up shows a form error, not a 500 — 6a9f62f
+- [x] 2.7 An over-long email shows a form error, not a 500 — 6a9f62f
 
 ### Phase 3: Protected landing & access control + tests
 
 #### Automated
 
-- [ ] 3.1 Django test suite passes
-- [ ] 3.2 Django system checks pass
-- [ ] 3.3 Migration drift check is clean
+- [x] 3.1 Django test suite passes
+- [x] 3.2 Django system checks pass
+- [x] 3.3 Migration drift check is clean
 
 #### Manual
 
-- [ ] 3.4 Visiting / logged out shows the login screen; logging in shows the placeholder home with the user's email
-- [ ] 3.5 The logout button returns to /login/, and browser Back does not re-show the authenticated home
-- [ ] 3.6 /register/ is reachable while logged out and / is not
+- [x] 3.4 Visiting / logged out shows the login screen; logging in shows the placeholder home with the user's email
+- [x] 3.5 The logout button returns to /login/, and browser Back does not re-show the authenticated home
+- [x] 3.6 /register/ is reachable while logged out and / is not
