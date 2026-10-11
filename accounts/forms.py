@@ -17,6 +17,7 @@ class EmailUserCreationForm(UserCreationForm):
         self.fields["username"].required = False
         self.fields["username"].label = ""
         self.fields["email"].widget.attrs["autofocus"] = True
+        self.order_fields(["username", "email", "password1", "password2"])
 
     def clean_email(self):
         normalized_email = self.cleaned_data["email"].strip().lower()
