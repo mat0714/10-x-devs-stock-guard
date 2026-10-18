@@ -340,15 +340,15 @@ Add the management command that makes the boundary testable by hand and gives S-
 
 #### Automated
 
-- [ ] 1.1 Lockfile is current (`uv lock --check`)
-- [ ] 1.2 Django system checks pass
-- [ ] 1.3 No migration drift remains
-- [ ] 1.4 Migration applies locally
-- [ ] 1.5 Static collection still succeeds
+- [x] 1.1 Lockfile is current (`uv lock --check`)
+- [x] 1.2 Django system checks pass
+- [x] 1.3 No migration drift remains
+- [x] 1.4 Migration applies locally
+- [x] 1.5 Static collection still succeeds
 
 #### Manual
 
-- [ ] 1.6 `marketdata_dailycandle` exists with the unique `(symbol, date)` constraint
+- [x] 1.6 `marketdata_dailycandle` exists with the unique `(symbol, date)` constraint
 
 ### Phase 2: Twelve Data adapter
 

@@ -8,6 +8,7 @@ dependencies = [
     "dj-database-url>=3.0.0",
     "whitenoise>=6.8.0",
     "psycopg[binary]>=3.2.0",
+    "httpx>=0.28.1",
 ]
 
 # Dev-only tooling (pytest, mypy, ruff) must go here, never in [project].dependencies,

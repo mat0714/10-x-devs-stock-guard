@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'accounts',
+    'marketdata',
 ]
 
 MIDDLEWARE = [
@@ -183,3 +184,11 @@ else:
             'BACKEND': 'django.core.mail.backends.console.EmailBackend',
         },
     }
+
+
+# Market data
+# Twelve Data API access and the daily-candle fetch window. Env-driven with
+# safe local defaults so dev, CI and Railway share one settings module.
+TWELVE_DATA_API_KEY = os.environ.get('TWELVE_DATA_API_KEY', '')
+MARKET_DATA_LOOKBACK_BARS = int(os.environ.get('MARKET_DATA_LOOKBACK_BARS', '500'))
+MARKET_DATA_HTTP_TIMEOUT = float(os.environ.get('MARKET_DATA_HTTP_TIMEOUT', '10'))
