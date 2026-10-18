@@ -1,7 +1,7 @@
 ---
 change_id: price-data-fetch-boundary
 title: Price data fetch boundary
-status: implemented
+status: impl_reviewed
 created: 2026-10-18
 updated: 2026-10-18
 archived_at: null

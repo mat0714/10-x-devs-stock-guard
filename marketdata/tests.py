@@ -198,6 +198,28 @@ class TwelveDataAdapterTests(TestCase):
 
         self.assertEqual(context.exception.reason, "invalid_response")
 
+    def test_fetchRaisesMappedReasonWhenHttpStatusFailsWithNonJsonBody(self):
+        cases = [
+            (404, "symbol_not_found"),
+            (429, "rate_limited"),
+            (500, "provider_error"),
+        ]
+        for status_code, expected_reason in cases:
+            with self.subTest(status_code=status_code):
+
+                def handler(request, status_code=status_code):
+                    return httpx.Response(status_code, text="<html>rate limited</html>")
+
+                with self.assertRaises(ProviderError) as context:
+                    twelvedata.fetch_daily(
+                        "AAPL",
+                        bars=500,
+                        timeout=5.0,
+                        api_key=API_KEY,
+                        transport=httpx.MockTransport(handler),
+                    )
+                self.assertEqual(context.exception.reason, expected_reason)
+
     def test_fetchRaisesInvalidResponseWhenValuesAreStructurallyInvalid(self):
         payload = _payload(
             [
@@ -215,6 +237,28 @@ class TwelveDataAdapterTests(TestCase):
             _fetch(payload)
 
         self.assertEqual(context.exception.reason, "invalid_response")
+
+    def test_fetchSkipsMalformedRowsWhenOtherRowsAreValid(self):
+        payload = _payload(
+            [
+                _value("2024-01-02"),
+                {
+                    "datetime": "not-a-date",
+                    "open": "1",
+                    "high": "1",
+                    "low": "1",
+                    "close": "1",
+                },
+                _value("2024-01-03"),
+            ]
+        )
+
+        candles, _ = _fetch(payload)
+
+        self.assertEqual(
+            [candle.date for candle in candles],
+            [date(2024, 1, 2), date(2024, 1, 3)],
+        )
 
     def test_fetchRaisesNoDataWhenValuesArrayIsEmpty(self):
         payload = _payload([])
@@ -418,7 +462,7 @@ class FetchServiceTests(TestCase):
         self.assertEqual(stored[-1], date(2024, 3, 1))
         self.assertEqual(stored[0], date(2024, 3, 1) - timedelta(days=499))
 
-    def test_fetchPrunesToCustomLookbackWhenBarsOverrideIsProvided(self):
+    def test_fetchKeepsConfiguredCacheWindowWhenBarsOverrideIsSmaller(self):
         now = datetime(2024, 1, 8, 18, 0, tzinfo=EASTERN)
         fetched = _service_candles(520, last_day=date(2024, 3, 1))
 
@@ -432,9 +476,22 @@ class FetchServiceTests(TestCase):
 
         self.assertEqual(fetch.call_args.kwargs["bars"], 200)
         stored = _stored_dates("AAPL")
-        self.assertEqual(len(stored), 200)
+        self.assertEqual(len(stored), 500)
         self.assertEqual(stored[-1], date(2024, 3, 1))
-        self.assertEqual(stored[0], date(2024, 3, 1) - timedelta(days=199))
+        self.assertEqual(stored[0], date(2024, 3, 1) - timedelta(days=499))
+
+    def test_fetchReturnsInvalidSymbolWithoutProviderCallWhenBarsIsNotPositive(self):
+        for bars in (0, -1):
+            with self.subTest(bars=bars):
+                with self.settings(TWELVE_DATA_API_KEY=API_KEY):
+                    with patch(
+                        "marketdata.services.twelvedata.fetch_daily"
+                    ) as fetch:
+                        result = fetch_daily_candles("AAPL", bars=bars)
+
+                self.assertIsInstance(result, PriceUnavailable)
+                self.assertEqual(result.reason, "invalid_symbol")
+                fetch.assert_not_called()
 
     def test_fetchReturnsStaleWithReasonWhenProviderFailsAndRowsAreStored(self):
         now = datetime(2024, 1, 8, 18, 0, tzinfo=EASTERN)
@@ -542,6 +599,39 @@ class FetchServiceTests(TestCase):
                 self.assertEqual(result.reason, reason)
                 self.assertEqual(result.message, "boom")
 
+    def test_fetchReturnsTypedResultWhenProviderRaisesUnexpectedError(self):
+        now = datetime(2024, 1, 8, 18, 0, tzinfo=EASTERN)
+
+        with self.settings(TWELVE_DATA_API_KEY=API_KEY):
+            with patch("django.utils.timezone.now", return_value=now):
+                with patch(
+                    "marketdata.services.twelvedata.fetch_daily",
+                    side_effect=RuntimeError("boom"),
+                ):
+                    result = fetch_daily_candles("AAPL")
+
+        self.assertIsInstance(result, PriceUnavailable)
+        self.assertEqual(result.reason, "provider_error")
+
+    def test_fetchReturnsTypedResultWhenPersistenceFails(self):
+        now = datetime(2024, 1, 8, 18, 0, tzinfo=EASTERN)
+        fetched = _service_candles(2, last_day=date(2024, 1, 5))
+
+        with self.settings(TWELVE_DATA_API_KEY=API_KEY):
+            with patch("django.utils.timezone.now", return_value=now):
+                with patch(
+                    "marketdata.services.twelvedata.fetch_daily",
+                    return_value=fetched,
+                ):
+                    with patch(
+                        "marketdata.services._store",
+                        side_effect=RuntimeError("db down"),
+                    ):
+                        result = fetch_daily_candles("AAPL")
+
+        self.assertIsInstance(result, PriceUnavailable)
+        self.assertEqual(result.reason, "provider_error")
+
 
 class FetchCandlesCommandTests(TestCase):
     def test_fetchCandlesCommandReturnsOkStatusAndCountWhenFetchSucceeds(self):
@@ -579,3 +669,19 @@ class FetchCandlesCommandTests(TestCase):
             call_command("fetch_candles", "NOPE", stdout=stdout)
 
         self.assertIn("status=unavailable reason=symbol_not_found", stdout.getvalue())
+
+    def test_fetchCandlesCommandOmitsProviderMessageWhenUnavailable(self):
+        result = PriceUnavailable(
+            symbol="NOPE",
+            reason="symbol_not_found",
+            message="<b>untrusted provider text</b>",
+        )
+        stdout = io.StringIO()
+
+        with patch(
+            "marketdata.management.commands.fetch_candles.fetch_daily_candles",
+            return_value=result,
+        ):
+            call_command("fetch_candles", "NOPE", stdout=stdout)
+
+        self.assertNotIn("<b>untrusted provider text</b>", stdout.getvalue())

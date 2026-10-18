@@ -2,8 +2,8 @@ from typing import Any
 
 from django.core.management.base import BaseCommand
 
-from marketdata.models import DailyCandle
-from marketdata.services import PriceUnavailable, fetch_daily_candles
+from ...models import DailyCandle
+from ...services import PriceUnavailable, fetch_daily_candles
 
 
 class Command(BaseCommand):
@@ -28,8 +28,6 @@ class Command(BaseCommand):
             self.stdout.write(
                 f"status=unavailable reason={result.reason} stored={stored}"
             )
-            if result.message:
-                self.stdout.write(result.message)
             return
 
         parts = [f"status={result.status}"]
