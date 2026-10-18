@@ -365,25 +365,25 @@ Add the management command that makes the boundary testable by hand and gives S-
 
 #### Automated
 
-- [x] 3.1 Service tests pass
-- [x] 3.2 Full app suite passes
-- [x] 3.3 Migration drift check is clean
-- [x] 3.4 Django system checks pass
+- [x] 3.1 Service tests pass — 406b57b
+- [x] 3.2 Full app suite passes — 406b57b
+- [x] 3.3 Migration drift check is clean — 406b57b
+- [x] 3.4 Django system checks pass — 406b57b
 
 #### Manual
 
-- [x] 3.5 Second fetch before the next NY close returns `cached` with no outbound request
+- [x] 3.5 Second fetch before the next NY close returns `cached` with no outbound request — 406b57b
 
 ### Phase 4: Smoke command & verification
 
 #### Automated
 
-- [ ] 4.1 Full suite passes
-- [ ] 4.2 Django system checks pass
+- [x] 4.1 Full suite passes
+- [x] 4.2 Django system checks pass
 
 #### Manual
 
-- [ ] 4.3 `fetch_candles AAPL` prints ~500 bars with status `ok`
-- [ ] 4.4 A second run before the next session close prints `cached` with the same date range
-- [ ] 4.5 An invalid ticker prints `symbol_not_found` and exits 0
-- [ ] 4.6 An unset key prints `not_configured` for an unfetched symbol and `stale` for a fetched one
+- [x] 4.3 `fetch_candles AAPL` prints ~500 bars with status `ok`
+- [x] 4.4 A second run before the next session close prints `cached` with the same date range
+- [x] 4.5 An invalid ticker prints `symbol_not_found` and exits 0
+- [x] 4.6 An unset key prints `not_configured` for an unfetched symbol and `stale` for a fetched one
