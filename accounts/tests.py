@@ -32,6 +32,19 @@ class RegistrationTests(TestCase):
 
         self.assertRedirects(response, "/")
 
+    def test_registrationReturnsRedirectToNextWhenNextIsProvided(self):
+        response = self.client.post(
+            "/register/?next=/",
+            {
+                "email": "marek@example.com",
+                "password1": PASSWORD,
+                "password2": PASSWORD,
+                "next": "/",
+            },
+        )
+
+        self.assertRedirects(response, "/")
+
     def test_registrationReturnsFormErrorWhenEmailAlreadyRegistered(self):
         User.objects.create_user(
             username="marek@example.com",
