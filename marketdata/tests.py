@@ -1,9 +1,11 @@
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+import io
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 import httpx
+from django.core.management import call_command
 from django.test import TestCase
 
 from marketdata.models import DailyCandle
@@ -539,3 +541,41 @@ class FetchServiceTests(TestCase):
                 self.assertIsInstance(result, PriceUnavailable)
                 self.assertEqual(result.reason, reason)
                 self.assertEqual(result.message, "boom")
+
+
+class FetchCandlesCommandTests(TestCase):
+    def test_fetchCandlesCommandReturnsOkStatusAndCountWhenFetchSucceeds(self):
+        _seed_rows(
+            "AAPL",
+            _service_candles(3, last_day=date(2024, 3, 1)),
+            fetched_at=datetime(2024, 3, 1, 17, 0, tzinfo=EASTERN),
+        )
+        series = PriceSeries(
+            symbol="AAPL",
+            candles=tuple(_service_candles(3, last_day=date(2024, 3, 1))),
+            status="ok",
+        )
+        stdout = io.StringIO()
+
+        with patch(
+            "marketdata.management.commands.fetch_candles.fetch_daily_candles",
+            return_value=series,
+        ):
+            call_command("fetch_candles", "AAPL", stdout=stdout)
+
+        output = stdout.getvalue()
+        self.assertIn("status=ok", output)
+        self.assertIn("candles=3", output)
+        self.assertIn("stored=3", output)
+
+    def test_fetchCandlesCommandReturnsUnavailableReasonWhenSymbolIsNotFound(self):
+        result = PriceUnavailable(symbol="NOPE", reason="symbol_not_found")
+        stdout = io.StringIO()
+
+        with patch(
+            "marketdata.management.commands.fetch_candles.fetch_daily_candles",
+            return_value=result,
+        ):
+            call_command("fetch_candles", "NOPE", stdout=stdout)
+
+        self.assertIn("status=unavailable reason=symbol_not_found", stdout.getvalue())
