@@ -26,9 +26,9 @@ Verified provider facts (2026-10-18, see research doc):
 
 ## Desired End State
 
-A caller can write `from marketdata.services import fetch_daily_candles` and receive either a `PriceSeries` (`status="ok"` or `"stale"`) with ascending daily candles, or a `PriceUnavailable` carrying a stable `reason`. The first call for a symbol on a given UTC day hits Twelve Data, stores up to 500 bars, prunes older ones, and every later call that day is served from Postgres without a network request. When Twelve Data fails but stored bars exist, the result is `stale` with the failure reason; when nothing is stored, it is `unavailable`. The function never raises for provider, configuration or data problems.
+A caller can write `from marketdata.services import fetch_daily_candles` and receive either a `PriceSeries` (`status="ok"` or `"stale"`) with ascending daily candles, or a `PriceUnavailable` carrying a stable `reason`. The first call for a symbol after each completed New York session hits Twelve Data, stores up to 500 bars, prunes older ones, and every later call before the next close is served from Postgres without a network request. When Twelve Data fails but stored bars exist, the result is `stale` with the failure reason; when nothing is stored, it is `unavailable`. The function never raises for provider, configuration or data problems.
 
-Verification: `uv run python manage.py test marketdata` passes, `uv run python manage.py migrate` creates `marketdata_dailycandle`, and `uv run python manage.py fetch_candles AAPL` prints 500 bars of status `ok` and a second run the same day prints `cached`.
+Verification: `uv run python manage.py test marketdata` passes, `uv run python manage.py migrate` creates `marketdata_dailycandle`, and `uv run python manage.py fetch_candles AAPL` prints 500 bars of status `ok` and a second run before the next session close prints `cached`.
 
 ### Key Discoveries:
 
@@ -65,16 +65,18 @@ marketdata.services.fetch_daily_candles   ← freshness, DB read/write, prune, s
 marketdata.providers.twelvedata.fetch_daily  ← URL, auth, parsing, HTTP→reason mapping
 ```
 
-The cache freshness rule is deliberately calendar-free: a symbol is fresh when the newest `fetched_at` falls on the current UTC date. That means one upstream fetch per symbol per UTC day while users keep scanning, which is 12 credits/day for a 12-symbol list against an 800/day cap. The incomplete current New York session is dropped at parse time so the stored series contains only completed daily bars.
+The cache freshness rule is calendar-light: a symbol is fresh when its newest `fetched_at` is at or after the most recent completed New York session close. That means one upstream fetch per symbol per completed session while users keep scanning, which is 12 credits/day for a 12-symbol list against an 800/day cap (at most one extra refetch per symbol on a UTC day when the first call precedes the close). The current New York session is dropped at parse time only while it is incomplete, so the stored series contains only completed daily bars.
 
 **Licence constraint (recorded, not solved):** Twelve Data's Basic plan is "internal non-display usage only", and no inspected free tier permits several accounts to see derived flags. Proceeding on Basic is a conscious MVP decision. Switching to Grow ($29/mo) later changes only `TWELVE_DATA_API_KEY` and the plan on the account — no code change.
 
+**Scope deviation (recorded):** `context/foundation/roadmap.md:99` tells F-02 not to complete caching machinery, but `research.md:167` shows caching is a functional requirement here: without a per-symbol cache the 8 credits/min limit forces pacing and breaks the few-seconds scan budget. This plan therefore owns the `DailyCandle` cache and prune, and the roadmap's F-02 note is updated to match.
+
 ## Critical Implementation Details
 
-- **Freshness is keyed to `fetched_at`, not to the newest candle date.** Using the candle date would refetch all weekend and holiday requests; using a short TTL would multiply credit use. The UTC-day rule gives one fetch per symbol per day and is deterministic in tests.
-- **The current New York session must be dropped.** Twelve Data's `1day` response can include a partial bar for today. Filtering on `date < today in America/New_York` keeps the series limited to completed sessions, so a detection window never ends on a half-formed candle.
+- **Freshness is keyed to the newest `fetched_at`, compared against the last completed New York session close.** Using the candle date would refetch all weekend and holiday requests; using a short TTL would multiply credit use. "Fresh" means `max(fetched_at) >= last_completed_close(now)`: the most recent weekday 16:00 ET whose close has passed, converted to UTC (weekends fall back to Friday). Evening calls after the close refetch once to pick up that session; morning calls reuse the prior close's data.
+- **Only the in-progress New York session is dropped.** Before 16:00 ET, drop bars dated today in America/New_York; at or after 16:00 ET, keep today's completed bar and drop only future dates. That keeps a detection window from ending on a half-formed candle without hiding a session that has already closed.
 - **`bulk_create` bypasses `auto_now`.** Set `fetched_at` explicitly to one `timezone.now()` value shared by every row in the batch.
-- **Prune by 500th-newest date, not by "delete older than two years".** The contract is a rolling bar count, which stays correct across market closures and holidays.
+- **Prune by the effective lookback's Nth-newest date, not by "delete older than two years".** The contract is a rolling bar count (`bars`, default `MARKET_DATA_LOOKBACK_BARS`), which stays correct across market closures and holidays and stays consistent with a `--bars` override.
 
 ## Phase 1: App, dependency & schema
 
@@ -118,7 +120,7 @@ MARKET_DATA_HTTP_TIMEOUT = float(os.environ.get("MARKET_DATA_HTTP_TIMEOUT", "10"
 
 **File**: `marketdata/models.py`, `marketdata/migrations/0001_initial.py`
 
-**Intent**: Store a deduplicated rolling window of completed daily bars, keyed by symbol and trading date, so repeat scans within a UTC day need no network call.
+**Intent**: Store a deduplicated rolling window of completed daily bars, keyed by symbol and trading date, so repeat scans between session closes need no network call.
 
 **Contract**: `DailyCandle` fields: `symbol` (`CharField(max_length=16)`), `date` (`DateField`), `open`/`high`/`low`/`close` (`DecimalField(max_digits=18, decimal_places=6)`), `volume` (`BigIntegerField(null=True)`), `fetched_at` (`DateTimeField()`, no `auto_now`). `Meta.constraints` contains `UniqueConstraint(fields=["symbol", "date"], name="uniq_daily_candle_symbol_date")`; no extra index, because the constraint already supplies it. `__str__` returns `f"{symbol} {date}"`.
 
@@ -162,7 +164,7 @@ Implement the single provider adapter that builds the request, parses the payloa
 
 **Intent**: Fetch up to N daily bars for one symbol and return them ascending, with only completed sessions, or raise `ProviderError`.
 
-**Contract**: `fetch_daily(symbol: str, *, bars: int, timeout: float, api_key: str, transport: httpx.BaseTransport | None = None, today_ny: date | None = None) -> list[Candle]`. Builds `GET https://api.twelvedata.com/time_series` with params `symbol`, `interval=1day`, `outputsize=bars`, `order=asc`, `adjust=all`, and header `Authorization: apikey <key>` (the key must not appear in the URL or in log lines). When `transport` is supplied, construct `httpx.Client(transport=transport, timeout=timeout)`; otherwise construct a plain client. Parse `payload["values"]` into `Candle`, `date.fromisoformat(value["datetime"])`, and `Decimal` for the four prices; a missing/blank `volume` becomes `None`. Sort ascending by date and drop `date >= (today_ny or current date in America/New_York)`. Map a body with `status == "error"` or a `code` field to the reason by code: 401/403 → `auth_failed`, 404 → `symbol_not_found`, 429 → `rate_limited`, 5xx/other → `provider_error`; JSON decode errors and structurally invalid values → `invalid_response`; an empty `values` array → `no_data`. Network timeouts and connection errors → `provider_error`. No retries.
+**Contract**: `fetch_daily(symbol: str, *, bars: int, timeout: float, api_key: str, transport: httpx.BaseTransport | None = None, now_ny: datetime | None = None) -> list[Candle]`. Builds `GET https://api.twelvedata.com/time_series` with params `symbol`, `interval=1day`, `outputsize=bars`, `order=asc`, `adjust=all`, and header `Authorization: apikey <key>` (the key must not appear in the URL or in log lines). When `transport` is supplied, construct `httpx.Client(transport=transport, timeout=timeout)`; otherwise construct a plain client. Parse `payload["values"]` into `Candle`, `date.fromisoformat(value["datetime"])`, and `Decimal` for the four prices; a missing/blank `volume` becomes `None`. Sort ascending by date and drop the current New York bar only while it is incomplete: when `now_ny` (default `datetime.now(ZoneInfo("America/New_York"))`) is before 16:00 ET drop `date >= now_ny.date()`, otherwise drop `date > now_ny.date()`. Map a body with `status == "error"` or a `code` field to the reason by code: 401/403 → `auth_failed`, 404 → `symbol_not_found`, 429 → `rate_limited`, 400 and any other 4xx → `provider_error`, 5xx/other → `provider_error`; JSON decode errors and structurally invalid values → `invalid_response`; an empty `values` array → `no_data`. Network timeouts and connection errors → `provider_error`. No retries.
 
 #### 3. Adapter tests
 
@@ -170,7 +172,7 @@ Implement the single provider adapter that builds the request, parses the payloa
 
 **Intent**: Prove parsing, ordering, session filtering and error mapping without any network access.
 
-**Contract**: `TwelveDataAdapterTests(TestCase)` using `httpx.MockTransport` handlers that assert the outgoing query params and auth header. Cases: ascending order with `Decimal` prices and integer volume; newest-first input is re-sorted ascending; a bar dated today in New York is dropped; `volume` absent yields `None`; each of 400/404/429/500 maps to the documented reason; a non-JSON body raises `invalid_response`; an empty `values` list raises `no_data`. Method names follow `test_fetchReturns...When...`.
+**Contract**: `TwelveDataAdapterTests(TestCase)` using `httpx.MockTransport` handlers that assert the outgoing query params and auth header. Cases: ascending order with `Decimal` prices and integer volume; newest-first input is re-sorted ascending; a bar dated today in New York is dropped before 16:00 ET and retained after 16:00 ET; `volume` absent yields `None`; each of 400/401/403/404/429/500 maps to the documented reason; an `httpx.ConnectError`/timeout raises `provider_error`; a non-JSON body raises `invalid_response`; an empty `values` list raises `no_data`. Method names follow `test_fetchReturns...When...`.
 
 ### Success Criteria:
 
@@ -201,11 +203,11 @@ Implement `fetch_daily_candles`, the single public entry point: read-through cac
 
 **Intent**: Turn per-symbol fetching into a total function that always returns a result and never raises for provider, config or data problems.
 
-**Contract**: frozen dataclasses `PriceSeries(symbol: str, candles: tuple[Candle, ...], status: str, reason: str | None = None, message: str = "")` with `status` in `{"ok", "stale"}`, and `PriceUnavailable(symbol: str, reason: str, message: str = "")`; `FetchResult = PriceSeries | PriceUnavailable`. Public function `fetch_daily_candles(symbol: str) -> FetchResult`:
+**Contract**: frozen dataclasses `PriceSeries(symbol: str, candles: tuple[Candle, ...], status: str, reason: str | None = None, message: str = "")` with `status` in `{"ok", "stale"}`, and `PriceUnavailable(symbol: str, reason: str, message: str = "")`; `FetchResult = PriceSeries | PriceUnavailable`. Public function `fetch_daily_candles(symbol: str, *, bars: int | None = None) -> FetchResult`, where `bars` defaults to `settings.MARKET_DATA_LOOKBACK_BARS` and is the effective window for both the provider request and the prune:
 - Normalize the symbol with `strip().upper()`; empty input returns `PriceUnavailable(reason="invalid_symbol")`.
-- Read `max(fetched_at)` for the symbol. If it equals today in UTC, return stored candles as `PriceSeries(status="ok", reason="cached")` without any HTTP call.
-- Otherwise call `twelvedata.fetch_daily(...)` with `settings.MARKET_DATA_LOOKBACK_BARS`, `settings.MARKET_DATA_HTTP_TIMEOUT` and `settings.TWELVE_DATA_API_KEY`. An empty key skips the call and produces `not_configured`.
-- On success, upsert and prune inside `transaction.atomic()`, then return the stored series as `PriceSeries(status="ok")`.
+- Read `max(fetched_at)` for the symbol. If it is at or after `_last_completed_close(timezone.now())` (most recent weekday 16:00 ET already passed, converted to UTC), return stored candles as `PriceSeries(status="ok", reason="cached")` without any HTTP call.
+- Otherwise call `twelvedata.fetch_daily(...)` with `bars`, `settings.MARKET_DATA_HTTP_TIMEOUT` and `settings.TWELVE_DATA_API_KEY`. An empty key skips the call and produces `not_configured`.
+- On success, upsert and prune to `bars` inside `transaction.atomic()`, then return the stored series as `PriceSeries(status="ok")`.
 - On `ProviderError` or an empty key, load any stored candles: if present return `PriceSeries(status="stale", reason=<reason>, message=<message>)`, otherwise `PriceUnavailable(reason=<reason>, message=<message>)`.
 - Log one `warning` per failed fetch with symbol and reason, never the key or the raw URL.
 
@@ -215,7 +217,7 @@ Implement `fetch_daily_candles`, the single public entry point: read-through cac
 
 **Intent**: Keep upsert and prune in one place, with one `fetched_at` per batch.
 
-**Contract**: `_store(symbol, candles, fetched_at)` uses `bulk_create(..., update_conflicts=True, unique_fields=["symbol", "date"], update_fields=["open", "high", "low", "close", "volume", "fetched_at"])` and then deletes rows older than the 500th-newest date when at least `MARKET_DATA_LOOKBACK_BARS` rows exist. `_load(symbol)` returns ascending `Candle` tuples ordered by `date`.
+**Contract**: `_store(symbol, candles, fetched_at, lookback)` uses `bulk_create(..., update_conflicts=True, unique_fields=["symbol", "date"], update_fields=["open", "high", "low", "close", "volume", "fetched_at"])` and then, when the symbol has more than `lookback` rows, deletes every row older than the `lookback`-th newest date (keep exactly the newest `lookback` dates). `_load(symbol)` returns ascending `Candle` tuples ordered by `date`.
 
 #### 3. Service tests
 
@@ -223,7 +225,7 @@ Implement `fetch_daily_candles`, the single public entry point: read-through cac
 
 **Intent**: Prove the cache, upsert, prune and fallback behaviour without touching the network.
 
-**Contract**: `FetchServiceTests(TestCase)` patching `marketdata.services.twelvedata.fetch_daily` and `django.utils.timezone.now`. Cases: fresh rows are served without calling the provider; no rows triggers one provider call and stores them; rows fetched on a previous UTC day trigger a refetch; overlapping dates update in place and leave row count unchanged; 520 fetched bars leave exactly 500 stored and keep the newest; a provider failure with stored rows returns `stale` carrying the reason; a provider failure with no rows returns `unavailable`; an empty API key with no rows returns `not_configured`; an empty key with rows returns `stale`; an empty or whitespace symbol returns `invalid_symbol` without a provider call; the function returns a result rather than raising for every mapped reason.
+**Contract**: `FetchServiceTests(TestCase)` patching `marketdata.services.twelvedata.fetch_daily` and `django.utils.timezone.now`. Cases: rows fetched after the last completed close are served without calling the provider; rows fetched before the last close trigger exactly one refetch even on the same UTC day; no rows triggers one provider call and stores them; a previous-session cache triggers a refetch; overlapping dates update in place and leave row count unchanged; 520 fetched bars with `bars=500` leave exactly 500 stored and keep the newest; `bars=200` leaves exactly 200 stored; a provider failure with stored rows returns `stale` carrying the reason; a provider failure with no rows returns `unavailable`; an empty API key with no rows returns `not_configured`; an empty key with rows returns `stale`; an empty or whitespace symbol returns `invalid_symbol` without a provider call; the function returns a result rather than raising for every mapped reason.
 
 ### Success Criteria:
 
@@ -236,7 +238,7 @@ Implement `fetch_daily_candles`, the single public entry point: read-through cac
 
 #### Manual Verification:
 
-- With a real key, fetch `AAPL` twice in a row; the second call returns `status="ok"`, `reason="cached"`, and makes no outbound request (confirm by removing the key between calls and still getting `ok` for the same UTC day).
+- With a real key, fetch `AAPL` twice in a row; the second call returns `status="ok"`, `reason="cached"`, and makes no outbound request before the next session close (confirm by removing the key between calls and still getting `ok`).
 
 **Implementation Note**: After completing this phase and all automated verification passes, pause here for manual confirmation from the human that the manual testing was successful before proceeding to the next phase.
 
@@ -256,7 +258,7 @@ Add the management command that makes the boundary testable by hand and gives S-
 
 **Intent**: Fetch one symbol from the command line, print the result status and the stored date range, and exit non-zero only for an unexpected exception.
 
-**Contract**: `python manage.py fetch_candles SYMBOL` calls `fetch_daily_candles`, prints `status`, `reason` when present, candle count, first and last date, and stored row count. `--bars N` overrides `MARKET_DATA_LOOKBACK_BARS` for that run. `unavailable` prints a clear line and exits 0, because unavailability is a normal result.
+**Contract**: `python manage.py fetch_candles SYMBOL` calls `fetch_daily_candles`, prints `status`, `reason` when present, candle count, first and last date, and stored row count. `--bars N` is passed as `fetch_daily_candles(..., bars=N)` and therefore also sets the prune window for that run. `unavailable` prints a clear line and exits 0, because unavailability is a normal result.
 
 #### 2. Command test
 
@@ -276,7 +278,7 @@ Add the management command that makes the boundary testable by hand and gives S-
 #### Manual Verification:
 
 - `uv run python manage.py fetch_candles AAPL` prints about 500 stored bars and an `ok` status.
-- A second same-day run prints `cached` and the same date range.
+- A second run before the next session close prints `cached` and the same date range.
 - `uv run python manage.py fetch_candles NOTAREALTICKER` prints `symbol_not_found` and exits 0.
 - With `TWELVE_DATA_API_KEY` unset, a symbol with no stored rows prints `not_configured`, and a symbol with stored rows prints `stale`.
 
@@ -287,11 +289,11 @@ Add the management command that makes the boundary testable by hand and gives S-
 ### Unit Tests:
 
 - Adapter: ordering, session filtering, `Decimal` parsing, absent volume, every documented error code, malformed JSON, empty values.
-- Service: freshness by UTC day, provider called exactly once per day, upsert idempotence, prune to 500, stale vs unavailable fallback, empty-key behaviour, symbol normalization.
+- Service: freshness by last completed session, provider called at most once per session, upsert idempotence, prune to the effective lookback, stale vs unavailable fallback, empty-key behaviour, symbol normalization.
 
 ### Integration Tests:
 
-- Service + real ORM against the test database: first fetch populates 500 rows, a second fetch the same day adds none, and a simulated previous-day cache triggers exactly one provider call. The provider is stubbed at the `twelvedata.fetch_daily` seam, so no network is used in CI or locally.
+- Service + real ORM against the test database: first fetch populates 500 rows, a second fetch before the next session close adds none, and a simulated previous-session cache triggers exactly one provider call. The provider is stubbed at the `twelvedata.fetch_daily` seam, so no network is used in CI or locally.
 
 ### Manual Testing Steps:
 
@@ -303,7 +305,7 @@ Add the management command that makes the boundary testable by hand and gives S-
 
 ## Performance Considerations
 
-- One HTTP call per symbol per UTC day. A 12-symbol watchlist costs 12 credits/day against the 800/day cap, but a **cold** 12-symbol scan spends 12 credits against the 8/min limit. F-02 surfaces `rate_limited`; S-03 decides whether to stagger, cache pre-warm or reduce parallelism.
+- One HTTP call per symbol per completed session. A 12-symbol watchlist costs 12 credits/day against the 800/day cap, plus at most one refetch per symbol on days when the first call precedes the close; a **cold** 12-symbol scan spends 12 credits against the 8/min limit. F-02 surfaces `rate_limited`; S-03 decides whether to stagger, cache pre-warm or reduce parallelism.
 - `outputsize=500` keeps each payload at roughly 500 rows instead of up to 5,000, with no credit difference.
 - The read path is a `MAX(fetched_at)` plus one indexed `(symbol, date)` range read; the write path is one bulk upsert plus one delete. Both are negligible at ~6,000 rows per watchlist.
 - The HTTP timeout defaults to 10 seconds so one slow symbol cannot hold a caller indefinitely.
@@ -370,7 +372,7 @@ Add the management command that makes the boundary testable by hand and gives S-
 
 #### Manual
 
-- [ ] 3.5 Second same-day fetch returns `cached` with no outbound request
+- [ ] 3.5 Second fetch before the next NY close returns `cached` with no outbound request
 
 ### Phase 4: Smoke command & verification
 
@@ -382,6 +384,6 @@ Add the management command that makes the boundary testable by hand and gives S-
 #### Manual
 
 - [ ] 4.3 `fetch_candles AAPL` prints ~500 bars with status `ok`
-- [ ] 4.4 A second same-day run prints `cached` with the same date range
+- [ ] 4.4 A second run before the next session close prints `cached` with the same date range
 - [ ] 4.5 An invalid ticker prints `symbol_not_found` and exits 0
 - [ ] 4.6 An unset key prints `not_configured` for an unfetched symbol and `stale` for a fetched one
