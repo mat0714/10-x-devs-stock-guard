@@ -96,8 +96,8 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Unknowns:**
   - Which free price API provides daily candles for the target tickers, and does its free tier cover the expected per-user call volume? — Owner: user. Block: yes.
   - What ticker symbol format does the chosen API expect (FR-003 accepts free-text ticker + name)? — Owner: user. Block: yes.
-- **Risk:** Left as a seam now, not a full layer: it must not complete caching/rate-limit machinery the first consuming slice can add itself. The real risk is provider selection — a poor fit (no daily candles, or a rate limit that breaks a dozen-stock scan) invalidates the north star, so it is surfaced as a blocking unknown rather than buried.
-- **Status:** planning
+- **Risk:** The provider is selected (Twelve Data, research.md 2026-10-18) and the per-symbol `DailyCandle` cache with prune is part of F-02, because research.md:167 shows caching is a functional requirement under the 8 credits/min limit rather than an optimisation for a later slice. The remaining risk is provider fit (free-tier licence and rate limits), tracked in the plan as a launch-time risk.
+- **Status:** planned
 
 ## Slices
 
