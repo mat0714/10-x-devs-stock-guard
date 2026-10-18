@@ -1,12 +1,15 @@
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 import httpx
 from django.test import TestCase
 
-from marketdata.providers import ProviderError
+from marketdata.models import DailyCandle
+from marketdata.providers import Candle, ProviderError
 from marketdata.providers import twelvedata
+from marketdata.services import PriceSeries, PriceUnavailable, fetch_daily_candles
 
 EASTERN = ZoneInfo("America/New_York")
 API_KEY = "test-api-key"
@@ -218,3 +221,321 @@ class TwelveDataAdapterTests(TestCase):
             _fetch(payload)
 
         self.assertEqual(context.exception.reason, "no_data")
+
+
+def _service_candle(day, *, close="1.000000", volume=1000000):
+    return Candle(
+        date=day,
+        open=Decimal("100.500000"),
+        high=Decimal("110.250000"),
+        low=Decimal("90.750000"),
+        close=Decimal(close),
+        volume=volume,
+    )
+
+
+def _service_candles(count, *, last_day=date(2024, 3, 1)):
+    first_day = last_day - timedelta(days=count - 1)
+    return [
+        _service_candle(first_day + timedelta(days=offset)) for offset in range(count)
+    ]
+
+
+def _seed_rows(symbol, candles, *, fetched_at):
+    DailyCandle.objects.bulk_create(
+        [
+            DailyCandle(
+                symbol=symbol,
+                date=candle.date,
+                open=candle.open,
+                high=candle.high,
+                low=candle.low,
+                close=candle.close,
+                volume=candle.volume,
+                fetched_at=fetched_at,
+            )
+            for candle in candles
+        ]
+    )
+
+
+def _stored_dates(symbol):
+    return list(
+        DailyCandle.objects.filter(symbol=symbol)
+        .order_by("date")
+        .values_list("date", flat=True)
+    )
+
+
+class FetchServiceTests(TestCase):
+    def test_fetchReturnsCachedSeriesWithoutProviderCallWhenNewestFetchIsAfterLastClose(self):
+        now = datetime(2024, 1, 8, 18, 0, tzinfo=EASTERN)
+        _seed_rows(
+            "AAPL",
+            _service_candles(2, last_day=date(2024, 1, 5)),
+            fetched_at=datetime(2024, 1, 8, 17, 0, tzinfo=EASTERN),
+        )
+
+        with self.settings(TWELVE_DATA_API_KEY=API_KEY):
+            with patch("django.utils.timezone.now", return_value=now):
+                with patch("marketdata.services.twelvedata.fetch_daily") as fetch:
+                    result = fetch_daily_candles(" aapl ")
+
+        self.assertIsInstance(result, PriceSeries)
+        self.assertEqual(result.symbol, "AAPL")
+        self.assertEqual(result.status, "ok")
+        self.assertEqual(result.reason, "cached")
+        self.assertEqual(
+            [candle.date for candle in result.candles],
+            [date(2024, 1, 4), date(2024, 1, 5)],
+        )
+        fetch.assert_not_called()
+
+    def test_fetchRefetchesOnceWhenNewestFetchIsBeforeLastCloseOnSameUtcDay(self):
+        now = datetime(2024, 1, 8, 18, 0, tzinfo=EASTERN)
+        _seed_rows(
+            "AAPL",
+            _service_candles(1, last_day=date(2024, 1, 5)),
+            fetched_at=datetime(2024, 1, 8, 10, 0, tzinfo=EASTERN),
+        )
+        fetched = _service_candles(2, last_day=date(2024, 1, 8))
+
+        with self.settings(TWELVE_DATA_API_KEY=API_KEY):
+            with patch("django.utils.timezone.now", return_value=now):
+                with patch(
+                    "marketdata.services.twelvedata.fetch_daily",
+                    return_value=fetched,
+                ) as fetch:
+                    result = fetch_daily_candles("AAPL")
+
+        self.assertEqual(fetch.call_count, 1)
+        self.assertEqual(result.status, "ok")
+        self.assertIsNone(result.reason)
+        self.assertEqual(
+            _stored_dates("AAPL"),
+            [date(2024, 1, 5), date(2024, 1, 7), date(2024, 1, 8)],
+        )
+
+    def test_fetchCallsProviderOnceAndStoresRowsWhenNothingIsStored(self):
+        now = datetime(2024, 1, 8, 18, 0, tzinfo=EASTERN)
+        fetched = _service_candles(3, last_day=date(2024, 1, 5))
+
+        with self.settings(TWELVE_DATA_API_KEY=API_KEY):
+            with patch("django.utils.timezone.now", return_value=now):
+                with patch(
+                    "marketdata.services.twelvedata.fetch_daily",
+                    return_value=fetched,
+                ) as fetch:
+                    result = fetch_daily_candles("AAPL")
+
+        self.assertEqual(fetch.call_count, 1)
+        self.assertEqual(fetch.call_args.kwargs["bars"], 500)
+        self.assertIsInstance(result, PriceSeries)
+        self.assertEqual(result.status, "ok")
+        self.assertIsNone(result.reason)
+        self.assertEqual(
+            _stored_dates("AAPL"),
+            [date(2024, 1, 3), date(2024, 1, 4), date(2024, 1, 5)],
+        )
+
+    def test_fetchRefetchesWhenNewestFetchIsFromAPreviousSession(self):
+        now = datetime(2024, 1, 8, 18, 0, tzinfo=EASTERN)
+        _seed_rows(
+            "AAPL",
+            _service_candles(2, last_day=date(2024, 1, 5)),
+            fetched_at=datetime(2024, 1, 5, 17, 0, tzinfo=EASTERN),
+        )
+        fetched = _service_candles(3, last_day=date(2024, 1, 8))
+
+        with self.settings(TWELVE_DATA_API_KEY=API_KEY):
+            with patch("django.utils.timezone.now", return_value=now):
+                with patch(
+                    "marketdata.services.twelvedata.fetch_daily",
+                    return_value=fetched,
+                ) as fetch:
+                    result = fetch_daily_candles("AAPL")
+
+        self.assertEqual(fetch.call_count, 1)
+        self.assertEqual(result.status, "ok")
+        self.assertEqual(
+            _stored_dates("AAPL"),
+            [
+                date(2024, 1, 4),
+                date(2024, 1, 5),
+                date(2024, 1, 6),
+                date(2024, 1, 7),
+                date(2024, 1, 8),
+            ],
+        )
+
+    def test_fetchUpdatesOverlappingDatesInPlaceAndKeepsRowCount(self):
+        now = datetime(2024, 1, 8, 18, 0, tzinfo=EASTERN)
+        _seed_rows(
+            "AAPL",
+            [
+                _service_candle(date(2024, 1, 4), close="1.000000"),
+                _service_candle(date(2024, 1, 5), close="1.000000"),
+            ],
+            fetched_at=datetime(2024, 1, 5, 17, 0, tzinfo=EASTERN),
+        )
+        fetched = [
+            _service_candle(date(2024, 1, 5), close="2.000000"),
+            _service_candle(date(2024, 1, 8), close="2.000000"),
+        ]
+
+        with self.settings(TWELVE_DATA_API_KEY=API_KEY):
+            with patch("django.utils.timezone.now", return_value=now):
+                with patch(
+                    "marketdata.services.twelvedata.fetch_daily",
+                    return_value=fetched,
+                ):
+                    fetch_daily_candles("AAPL")
+
+        rows = list(
+            DailyCandle.objects.filter(symbol="AAPL")
+            .order_by("date")
+            .values_list("date", "close")
+        )
+        self.assertEqual(len(rows), 3)
+        self.assertEqual(rows[1], (date(2024, 1, 5), Decimal("2.000000")))
+
+    def test_fetchPrunesToLookbackAndKeepsNewestWhenProviderReturnsMoreBars(self):
+        now = datetime(2024, 1, 8, 18, 0, tzinfo=EASTERN)
+        fetched = _service_candles(520, last_day=date(2024, 3, 1))
+
+        with self.settings(TWELVE_DATA_API_KEY=API_KEY):
+            with patch("django.utils.timezone.now", return_value=now):
+                with patch(
+                    "marketdata.services.twelvedata.fetch_daily",
+                    return_value=fetched,
+                ):
+                    fetch_daily_candles("AAPL", bars=500)
+
+        stored = _stored_dates("AAPL")
+        self.assertEqual(len(stored), 500)
+        self.assertEqual(stored[-1], date(2024, 3, 1))
+        self.assertEqual(stored[0], date(2024, 3, 1) - timedelta(days=499))
+
+    def test_fetchPrunesToCustomLookbackWhenBarsOverrideIsProvided(self):
+        now = datetime(2024, 1, 8, 18, 0, tzinfo=EASTERN)
+        fetched = _service_candles(520, last_day=date(2024, 3, 1))
+
+        with self.settings(TWELVE_DATA_API_KEY=API_KEY):
+            with patch("django.utils.timezone.now", return_value=now):
+                with patch(
+                    "marketdata.services.twelvedata.fetch_daily",
+                    return_value=fetched,
+                ) as fetch:
+                    fetch_daily_candles("AAPL", bars=200)
+
+        self.assertEqual(fetch.call_args.kwargs["bars"], 200)
+        stored = _stored_dates("AAPL")
+        self.assertEqual(len(stored), 200)
+        self.assertEqual(stored[-1], date(2024, 3, 1))
+        self.assertEqual(stored[0], date(2024, 3, 1) - timedelta(days=199))
+
+    def test_fetchReturnsStaleWithReasonWhenProviderFailsAndRowsAreStored(self):
+        now = datetime(2024, 1, 8, 18, 0, tzinfo=EASTERN)
+        _seed_rows(
+            "AAPL",
+            _service_candles(1, last_day=date(2024, 1, 5)),
+            fetched_at=datetime(2024, 1, 5, 17, 0, tzinfo=EASTERN),
+        )
+
+        with self.settings(TWELVE_DATA_API_KEY=API_KEY):
+            with patch("django.utils.timezone.now", return_value=now):
+                with patch(
+                    "marketdata.services.twelvedata.fetch_daily",
+                    side_effect=ProviderError("rate_limited", "slow down"),
+                ):
+                    result = fetch_daily_candles("AAPL")
+
+        self.assertIsInstance(result, PriceSeries)
+        self.assertEqual(result.status, "stale")
+        self.assertEqual(result.reason, "rate_limited")
+        self.assertEqual(result.message, "slow down")
+        self.assertEqual([candle.date for candle in result.candles], [date(2024, 1, 5)])
+        self.assertEqual(_stored_dates("AAPL"), [date(2024, 1, 5)])
+
+    def test_fetchReturnsUnavailableWhenProviderFailsAndNoRowsAreStored(self):
+        now = datetime(2024, 1, 8, 18, 0, tzinfo=EASTERN)
+
+        with self.settings(TWELVE_DATA_API_KEY=API_KEY):
+            with patch("django.utils.timezone.now", return_value=now):
+                with patch(
+                    "marketdata.services.twelvedata.fetch_daily",
+                    side_effect=ProviderError("symbol_not_found", "unknown symbol"),
+                ):
+                    result = fetch_daily_candles("NOPE")
+
+        self.assertIsInstance(result, PriceUnavailable)
+        self.assertEqual(result.symbol, "NOPE")
+        self.assertEqual(result.reason, "symbol_not_found")
+        self.assertEqual(result.message, "unknown symbol")
+
+    def test_fetchReturnsNotConfiguredWhenApiKeyIsEmptyAndNoRowsAreStored(self):
+        now = datetime(2024, 1, 8, 18, 0, tzinfo=EASTERN)
+
+        with self.settings(TWELVE_DATA_API_KEY=""):
+            with patch("django.utils.timezone.now", return_value=now):
+                with patch("marketdata.services.twelvedata.fetch_daily") as fetch:
+                    result = fetch_daily_candles("AAPL")
+
+        self.assertIsInstance(result, PriceUnavailable)
+        self.assertEqual(result.reason, "not_configured")
+        fetch.assert_not_called()
+
+    def test_fetchReturnsStaleNotConfiguredWhenApiKeyIsEmptyAndRowsAreStored(self):
+        now = datetime(2024, 1, 8, 18, 0, tzinfo=EASTERN)
+        _seed_rows(
+            "AAPL",
+            _service_candles(1, last_day=date(2024, 1, 5)),
+            fetched_at=datetime(2024, 1, 5, 17, 0, tzinfo=EASTERN),
+        )
+
+        with self.settings(TWELVE_DATA_API_KEY=""):
+            with patch("django.utils.timezone.now", return_value=now):
+                result = fetch_daily_candles("AAPL")
+
+        self.assertIsInstance(result, PriceSeries)
+        self.assertEqual(result.status, "stale")
+        self.assertEqual(result.reason, "not_configured")
+        self.assertEqual([candle.date for candle in result.candles], [date(2024, 1, 5)])
+
+    def test_fetchReturnsInvalidSymbolWithoutProviderCallWhenSymbolIsBlank(self):
+        for symbol in ("", "   "):
+            with self.subTest(symbol=symbol):
+                with self.settings(TWELVE_DATA_API_KEY=API_KEY):
+                    with patch(
+                        "marketdata.services.twelvedata.fetch_daily"
+                    ) as fetch:
+                        result = fetch_daily_candles(symbol)
+
+                self.assertIsInstance(result, PriceUnavailable)
+                self.assertEqual(result.reason, "invalid_symbol")
+                fetch.assert_not_called()
+
+    def test_fetchReturnsResultForEveryMappedProviderReason(self):
+        now = datetime(2024, 1, 8, 18, 0, tzinfo=EASTERN)
+        reasons = [
+            "auth_failed",
+            "symbol_not_found",
+            "rate_limited",
+            "provider_error",
+            "invalid_response",
+            "no_data",
+        ]
+
+        for reason in reasons:
+            with self.subTest(reason=reason):
+                with self.settings(TWELVE_DATA_API_KEY=API_KEY):
+                    with patch("django.utils.timezone.now", return_value=now):
+                        with patch(
+                            "marketdata.services.twelvedata.fetch_daily",
+                            side_effect=ProviderError(reason, "boom"),
+                        ):
+                            result = fetch_daily_candles("AAPL")
+
+                self.assertIsInstance(result, PriceUnavailable)
+                self.assertEqual(result.reason, reason)
+                self.assertEqual(result.message, "boom")
