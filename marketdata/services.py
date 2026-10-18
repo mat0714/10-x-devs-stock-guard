@@ -8,9 +8,9 @@ from django.db import transaction
 from django.db.models import Max
 from django.utils import timezone
 
-from marketdata.models import DailyCandle
-from marketdata.providers import Candle, ProviderError
-from marketdata.providers import twelvedata
+from .models import DailyCandle
+from .providers import Candle, ProviderError
+from .providers import twelvedata
 
 NEW_YORK = ZoneInfo("America/New_York")
 SESSION_CLOSE = time(16, 0)
@@ -38,11 +38,20 @@ FetchResult = PriceSeries | PriceUnavailable
 
 
 def fetch_daily_candles(symbol: str, *, bars: int | None = None) -> FetchResult:
+    """Return the daily-candle window for one symbol, never raising.
+
+    Freshness and persistence assume a single worker: the read of the newest
+    ``fetched_at``, the provider call and the upsert are not locked, so two
+    concurrent callers for the same symbol may both hit the provider.
+    """
     normalized = symbol.strip().upper()
     if not normalized:
         return PriceUnavailable(symbol=normalized, reason="invalid_symbol")
 
     lookback = bars if bars is not None else settings.MARKET_DATA_LOOKBACK_BARS
+    if lookback < 1:
+        return PriceUnavailable(symbol=normalized, reason="invalid_symbol")
+
     now = timezone.now()
 
     newest = DailyCandle.objects.filter(symbol=normalized).aggregate(
@@ -69,9 +78,19 @@ def fetch_daily_candles(symbol: str, *, bars: int | None = None) -> FetchResult:
         )
     except ProviderError as exc:
         return _failure(normalized, exc.reason, exc.message)
+    except Exception as exc:
+        return _failure(normalized, "provider_error", str(exc))
 
-    with transaction.atomic():
-        _store(normalized, candles, now, lookback)
+    try:
+        with transaction.atomic():
+            _store(
+                normalized,
+                candles,
+                now,
+                max(lookback, settings.MARKET_DATA_LOOKBACK_BARS),
+            )
+    except Exception as exc:
+        return _failure(normalized, "provider_error", str(exc))
     return PriceSeries(symbol=normalized, candles=_load(normalized), status="ok")
 
 
@@ -145,6 +164,12 @@ def _load(symbol: str) -> tuple[Candle, ...]:
 
 
 def _last_completed_close(now: datetime) -> datetime:
+    """Most recent weekday 16:00 ET whose close has passed, in UTC.
+
+    The rollback skips only weekends: on a market holiday it returns that day's
+    16:00 although no session occurred (one extra refetch), and on a half-day it
+    treats the session as incomplete until 16:00 ET.
+    """
     now_ny = now.astimezone(NEW_YORK)
     day = now_ny.date()
     if now_ny < datetime.combine(day, SESSION_CLOSE, tzinfo=NEW_YORK):

@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
-from marketdata.providers import Candle, ProviderError
+from . import Candle, ProviderError
 
 TIME_SERIES_URL = "https://api.twelvedata.com/time_series"
 NEW_YORK = ZoneInfo("America/New_York")
@@ -54,6 +54,8 @@ def _decode_payload(response: httpx.Response) -> dict:
     try:
         payload = response.json()
     except ValueError as exc:
+        if response.status_code >= 400:
+            raise ProviderError(_reason_for_code(response.status_code), str(exc)) from exc
         raise ProviderError("invalid_response", str(exc)) from exc
     if not isinstance(payload, dict):
         raise ProviderError("invalid_response", "Provider response was not a JSON object.")
@@ -88,7 +90,15 @@ def _parse_candles(payload: dict) -> list[Candle]:
         raise ProviderError("invalid_response", "Provider values was not a list.")
     if not values:
         raise ProviderError("no_data", "Provider returned no daily bars.")
-    return [_parse_candle(value) for value in values]
+    candles = []
+    for value in values:
+        try:
+            candles.append(_parse_candle(value))
+        except ProviderError:
+            continue
+    if not candles:
+        raise ProviderError("invalid_response", "No parseable daily bars in response.")
+    return candles
 
 
 def _parse_candle(value: object) -> Candle:
