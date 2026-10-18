@@ -3,7 +3,7 @@ project: Stock Guard
 version: 1
 status: draft
 created: 2026-10-08
-updated: 2026-10-11
+updated: 2026-10-18
 prd_version: 1
 main_goal: market-feedback
 top_blocker: external
@@ -42,7 +42,7 @@ An individual investor managing several to a dozen-plus positions spends time ev
 | ID   | Change ID                  | Outcome (user can …)                                                         | Prerequisites    | PRD refs               | Status   |
 | ---- | -------------------------- | ---------------------------------------------------------------------------- | ---------------- | ---------------------- | -------- |
 | F-01 | account-auth-scaffold      | (foundation) per-account sign-up/login screens live, backed by Django auth  | —                | FR-001, FR-002, Access Control | in-progress |
-| F-02 | price-data-fetch-boundary  | (foundation) one module fetches a daily-candle series per symbol from a chosen free API, with partial-failure surfacing | —                | FR-008, NFR-04         | blocked  |
+| F-02 | price-data-fetch-boundary  | (foundation) one module fetches a daily-candle series per symbol from a chosen free API, with partial-failure surfacing | —                | FR-008, NFR-04         | planning |
 | S-01 | own-watchlist-crud         | user can add, view, and remove stocks on their own private list              | F-01             | FR-003, FR-004, FR-006, US-01 | proposed |
 | S-02 | formation-detection-service| user sees a graded bearish-formation score rendered per scanned position     | F-01, S-01, F-02 | FR-009, FR-010, US-01  | blocked  |
 | S-03 | scan-on-login-flagged-list | user sees their whole list auto-scanned with graded flags after logging in   | S-01, S-02       | FR-007, FR-004, US-01, NFR-01, NFR-02 | blocked  |
@@ -97,7 +97,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
   - Which free price API provides daily candles for the target tickers, and does its free tier cover the expected per-user call volume? — Owner: user. Block: yes.
   - What ticker symbol format does the chosen API expect (FR-003 accepts free-text ticker + name)? — Owner: user. Block: yes.
 - **Risk:** Left as a seam now, not a full layer: it must not complete caching/rate-limit machinery the first consuming slice can add itself. The real risk is provider selection — a poor fit (no daily candles, or a rate limit that breaks a dozen-stock scan) invalidates the north star, so it is surfaced as a blocking unknown rather than buried.
-- **Status:** blocked
+- **Status:** planning
 
 ## Slices
 
