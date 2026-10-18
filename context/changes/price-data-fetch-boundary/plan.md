@@ -378,12 +378,12 @@ Add the management command that makes the boundary testable by hand and gives S-
 
 #### Automated
 
-- [x] 4.1 Full suite passes
-- [x] 4.2 Django system checks pass
+- [x] 4.1 Full suite passes — ee7f6ca
+- [x] 4.2 Django system checks pass — ee7f6ca
 
 #### Manual
 
-- [x] 4.3 `fetch_candles AAPL` prints ~500 bars with status `ok`
-- [x] 4.4 A second run before the next session close prints `cached` with the same date range
-- [x] 4.5 An invalid ticker prints `symbol_not_found` and exits 0
-- [x] 4.6 An unset key prints `not_configured` for an unfetched symbol and `stale` for a fetched one
+- [x] 4.3 `fetch_candles AAPL` prints ~500 bars with status `ok` — ee7f6ca
+- [x] 4.4 A second run before the next session close prints `cached` with the same date range — ee7f6ca
+- [x] 4.5 An invalid ticker prints `symbol_not_found` and exits 0 — ee7f6ca
+- [x] 4.6 An unset key prints `not_configured` for an unfetched symbol and `stale` for a fetched one — ee7f6ca
