@@ -340,26 +340,26 @@ Add the management command that makes the boundary testable by hand and gives S-
 
 #### Automated
 
-- [x] 1.1 Lockfile is current (`uv lock --check`)
-- [x] 1.2 Django system checks pass
-- [x] 1.3 No migration drift remains
-- [x] 1.4 Migration applies locally
-- [x] 1.5 Static collection still succeeds
+- [x] 1.1 Lockfile is current (`uv lock --check`) — dfeca81
+- [x] 1.2 Django system checks pass — dfeca81
+- [x] 1.3 No migration drift remains — dfeca81
+- [x] 1.4 Migration applies locally — dfeca81
+- [x] 1.5 Static collection still succeeds — dfeca81
 
 #### Manual
 
-- [x] 1.6 `marketdata_dailycandle` exists with the unique `(symbol, date)` constraint
+- [x] 1.6 `marketdata_dailycandle` exists with the unique `(symbol, date)` constraint — dfeca81
 
 ### Phase 2: Twelve Data adapter
 
 #### Automated
 
-- [ ] 2.1 Adapter tests pass
-- [ ] 2.2 Django system checks pass
+- [x] 2.1 Adapter tests pass
+- [x] 2.2 Django system checks pass
 
 #### Manual
 
-- [ ] 2.3 A real AAPL request returns ~500 ascending bars matching the provider's last completed close
+- [x] 2.3 A real AAPL request returns ~500 ascending bars matching the provider's last completed close
 
 ### Phase 3: Fetch service with DB cache
 
