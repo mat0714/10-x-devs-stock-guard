@@ -9,15 +9,17 @@ You are tasked with creating detailed implementation plans through an interactiv
 
 ## Native question capability
 
-First route the invocation: `/10x-plan <change-id> save` (also `$10x-plan <change-id> save`), or a request to save the already agreed plan after a mode switch, resumes **persistence**, not the interview. Read [references/plan-persistence.md](references/plan-persistence.md) and follow its save route before checking question prerequisites. A missing question capability is not a blocker when no decisions remain unresolved.
+First route the invocation: `/10x-plan <change-id> save` (also `$10x-plan <change-id> save`), or a request to save the already agreed plan after a mode switch, resumes **persistence**, not the interview. Read [references/plan-persistence.md](references/plan-persistence.md) and follow its save route before checking question prerequisites. A missing question tool is not a blocker when no decisions remain unresolved.
 
-`Ask the user:` below means the current environment's real structured question capability. Preserve question meaning and the recommendation/tradeoff format when mapping arguments; the actual supported schema governs option count and field limits. Use fewer options or split independent questions when the host limit is tighter. If the host requires a unique question `id` or does not expose multi-select support, use separate single-choice questions when choices are independent. Map multi-select and custom text input according to the host's supported schema.
+`Ask the user:` below means the current harness's real structured question capability. Preserve question meaning and the recommendation/tradeoff format when mapping arguments; the actual native schema governs option count and field limits. Use fewer options or split independent questions when the host limit is tighter. If the host requires a unique question `id` and does not expose `multiSelect`, use separate single-choice questions when choices are independent. When the host maps `multiSelect` to `multiple`, keep single-choice questions at `multiple: false`, and preserve custom text input (`custom: true`).
 
-Before the first question, check the capability actually available in the current session. Native structured questions may require an interactive planning or collaboration mode. Invoking this skill does not change the host's mode, and noninteractive execution may not be an interactive question entrypoint. The host/controller must start the interactive turn in a mode that supports questions. Use a session whose native question capability has a connected question client; an unattended text-only run is not evidence that the user can answer. If the required native capability is unavailable, name the missing capability and stop before assuming answers or creating the plan. Recommend switching to an interactive planning or collaboration mode, or reconnecting an interactive question client and resuming the session. Do not claim a question was submitted when you only printed prose. An explicit noninteractive task that stops for missing prerequisites may still report those prerequisites without entering the interview.
+Before the first question, check the capability actually available in the current session. Some hosts require an interactive planning or collaboration mode for native user-input requests. Invoking this skill does not change the host's mode, and noninteractive command execution is not an interactive question entrypoint. The host/controller must start the interactive turn in the appropriate mode. Use a session whose native question capability has a connected question client; an unattended text-only run is not evidence that the user can answer. If the required native capability is unavailable, name the missing capability and stop before assuming answers or creating the plan. Recommend switching to the host's interactive planning mode or reconnecting an interactive question client and resuming the session. Do not claim a question was submitted when you only printed prose. An explicit noninteractive task that stops for missing prerequisites may still report those prerequisites without entering the interview.
+
+**Show what you ask about.** Every approval or confirmation question (complexity, approach, phase structure) must carry its subject. First write the summary the step prescribes as plain assistant text in the same response, before asking the question; a response that opens with a question at such a step is wrong. Also put a compact form of that subject into the question text itself — for phases, the numbered phase list — because some hosts show only the question dialog. Never ask the user to approve something that is not on screen.
 
 Use the native tool's supported round size, respecting any tighter native limit. The confirmed question budget is a **total across rounds**, not a requirement to squeeze all questions into the first call. Ask from the primary agent; research subagents do not conduct the user interview.
 
-Check writing capability separately from questioning capability. When the host permits questions but forbids repository writes, read [references/plan-persistence.md](references/plan-persistence.md). Explain at the start that this session will produce the complete plan and brief in the conversation, followed by a writable-mode save step in the same conversation. A skill cannot switch host mode. Keep the latest decisions and corrections through that transition; do not restart the interview.
+Check writing capability separately from questioning capability. When the host permits questions but forbids repository writes, read [references/plan-persistence.md](references/plan-persistence.md). Explain at the start that this session will produce the complete plan and brief in the conversation, followed by a writable save step in the same conversation. A skill cannot switch host mode. Keep the latest decisions and corrections through that transition; do not restart the interview.
 
 ## Initial Response
 
@@ -83,7 +85,7 @@ Before any reading, identify what kinds of upstream artifacts the user passed in
 - Do NOT re-investigate the framing. Frame owns problem framing; you own solution design.
 
 **When research is present**, read it FULLY and use as the codebase baseline:
-- "Code References" section IS your codebase grounding — don't re-spawn Explore agents to find the same files.
+- "Code References" section IS your codebase grounding — don't re-spawn exploration agents to find the same files.
 - "Architecture Insights" feed directly into "Current State Analysis."
 - Spawn sub-agents only to fill specific gaps research didn't cover (e.g., the exact files this plan will modify if research was broader).
 
@@ -96,12 +98,12 @@ Before any reading, identify what kinds of upstream artifacts the user passed in
    - Related implementation plans
    - Any JSON/data files mentioned
    - `context/foundation/lessons.md` if present — treat its rules as priors when probing scope, edge cases, and architecture choices; rules already accepted by the team narrow which design pitfalls still need fresh questioning.
-   - **IMPORTANT**: Read entire files without limit or offset parameters
+   - **IMPORTANT**: Read entire files without limiting lines or offsets
    - **CRITICAL**: DO NOT spawn sub-tasks before reading these files yourself in the main context
    - **NEVER** read files partially - if a file is mentioned, read it completely
 
 2. **Spawn parallel research before the interview**:
-   Before asking the user any questions, delegate the unresolved evidence gaps to sub-agents working in parallel — by default 2–3 in a single message, each on a different search dimension (e.g. "find all files related to X", "find similar implementations of Y", "find prior decisions about Z in `context/changes/**/` and `context/archive/**/`"), each asked for `file:line` anchors. Read [references/task-orchestration.md](references/task-orchestration.md) before the first dispatch for the dispatch contract, capability fallback and evidence requirements. Resolve a single located fact with a scoped local read instead of a dispatch, and keep product questions and cross-component decisions with the primary agent. Dispatch subagents using the host's native equivalent for locating code or performing analysis. Wait for all dispatched sub-agents to complete before integrating their results.
+   Before asking the user any questions, delegate the unresolved evidence gaps to sub-agents working in parallel — by default 2–3 in a single message, each on a different search dimension (e.g. "find all files related to X", "find similar implementations of Y", "find prior decisions about Z in `context/changes/**/` and `context/archive/**/`"), each asked for `file:line` anchors. Read [references/task-orchestration.md](references/task-orchestration.md) before the first dispatch for the dispatch contract, capability fallback and evidence requirements. Resolve a single located fact with a scoped local read instead of a dispatch, and keep product questions and cross-component decisions with the primary agent. Use the host's native subagent capability — an exploration-oriented agent for locating code and a general-purpose agent for analysis. Wait for all dispatched sub-agents to complete before integrating their results.
 
 3. **Read all files identified by research tasks**:
    - After research tasks complete, read ALL files they identified as relevant
@@ -143,8 +145,8 @@ Before any reading, identify what kinds of upstream artifacts the user passed in
    Does this feel right, or would you adjust the complexity level?
    ```
 
-   Ask the user:
-   - question: "Does this complexity assessment match your expectations?"
+   Send the assessment above as a visible chat message first, then ask the user for confirmation. Name the level, the question count and the decision areas in the question text:
+   - question: "Complexity [LEVEL], [N] questions on [decision areas]. Does this assessment match your expectations?"
      header: "Complexity"
      options:
      - label: "⭐ Recommended: [N] questions (Recommended)"
@@ -165,7 +167,7 @@ Before any reading, identify what kinds of upstream artifacts the user passed in
 
    After the user confirms (or adjusts), proceed to questioning.
 
-6. **Ask deep probing questions**:
+6. **Ask deep probing questions using the native user-question capability**:
 
    Ask about the remaining decisions within the confirmed total budget, using the native round size above. The budget includes substantive clarifications; it is not a quota to fill or permission to reopen settled interfaces.
 
@@ -181,9 +183,9 @@ Before any reading, identify what kinds of upstream artifacts the user passed in
      `[1-sentence what this does] · Strength: [key advantage] · Tradeoff: [key cost or risk]`
    - The recommendation should be grounded in research (codebase patterns for software, domain knowledge and context for non-software) — not guessing
 
-   **Check the payload before asking:** every `header` is 1–12 characters (count spaces), each question has 2–4 distinct choices within the actual host limit, only the first label contains the exact `⭐ Recommended` marker, and every description contains both ` · Strength: ` and ` · Tradeoff: ` with concrete content. Use `Format` instead of the 13-character `Output format`. Verify the native question arguments themselves, not only a prose preview.
+   **Check the question payload before asking:** every `header` is 1–12 characters (count spaces), each question has 2–4 distinct choices within the actual host limit, only the first label contains the exact `⭐ Recommended` marker, and every description contains both ` · Strength: ` and ` · Tradeoff: ` with concrete content. Use `Format` instead of the 13-character `Output format`. Verify the native question arguments themselves, not only a prose preview.
 
-   **Example structured question with recommendations (software — delivery):** `Rollout` is `[S]` — delivery strategy; ask only when the change can fail in production in a way the release path would have to contain, otherwise inherit the team's default.
+   **Example user question with recommendations (software — delivery):** `Rollout` is `[S]` — delivery strategy; ask only when the change can fail in production in a way the release path would have to contain, otherwise inherit the team's default.
 
    Ask the user:
    - question: "How should the new pricing calculation reach production accounts?"
@@ -197,7 +199,7 @@ Before any reading, identify what kinds of upstream artifacts the user passed in
        description: "Compute old and new prices in parallel, log the differences, serve only the old result for two weeks. · Strength: Surfaces disagreements against real traffic with zero customer impact. · Tradeoff: Delays launch by the observation window and adds a diff log nobody owns yet."
      multiSelect: false
 
-   **Example structured question with recommendations (software):** `Conflicts` is `[S]` — solution architecture; ask only if the decision remains unresolved after reading upstream artifacts.
+   **Example user question with recommendations (software):** `Conflicts` is `[S]` — solution architecture; ask only if the decision remains unresolved after reading upstream artifacts.
 
    Ask the user:
    - question: "How should the system handle conflicts when two users edit simultaneously?"
@@ -211,7 +213,7 @@ Before any reading, identify what kinds of upstream artifacts the user passed in
        description: "First editor locks the resource; others see read-only until released. · Strength: Prevents conflicts entirely — simplest mental model for users. · Tradeoff: Stale locks require TTL + cleanup logic; blocks legitimate concurrent work."
      multiSelect: false
 
-   **Example structured question with recommendations (non-software — content/strategy):** `Depth` is `[D]` — diagnostic about audience/scope; skip if a frame brief already settled who this is for.
+   **Example user question with recommendations (non-software — content/strategy):** `Depth` is `[D]` — diagnostic about audience/scope; skip if a frame brief already settled who this is for.
 
    Ask the user:
    - question: "What depth of technical detail should the course module target?"
@@ -322,7 +324,7 @@ After getting initial clarifications from the user, NOW is when you address the 
    - Only proceed once you've verified the facts yourself
 
 3. **Update the unresolved questions and owners**:
-   Reuse the working list from Step 1. Track multi-area work with native task capabilities if available; no extra tracking ceremony is needed for one lookup.
+   Reuse the working list from Step 1. Track multi-area work with native task tools if available; no extra tracking ceremony is needed for one lookup.
 
 4. **Investigate only the remaining gaps**:
    Apply the orchestration reference for scoped dispatch, available model choices, launch failures and stale results. Independent tasks may run concurrently; dependent tasks wait for their prerequisite. Reuse the existing worker for a focused follow-up.
@@ -330,9 +332,9 @@ After getting initial clarifications from the user, NOW is when you address the 
 5. **Close discovery at the evidence boundary**:
    Synthesize results as they arrive; verify consequential claims and resolve material conflicts. Stop when you can explain the affected contracts, reusable patterns, verification and remaining user decisions. Cancel irrelevant exploration. Unfinished required checks remain blocking; do not replace evidence with a time budget.
 
-6. **Present findings and design options**:
+6. **Present findings and design options using the native user-question capability**:
 
-   First, present a brief summary of research findings:
+   First, send a brief summary of research findings as a visible chat message (before any approach question):
 
    ```
    Based on my research, here's what I found:
@@ -342,7 +344,7 @@ After getting initial clarifications from the user, NOW is when you address the 
    - [Pattern or convention to follow]
    ```
 
-   Check approaches against settled requirements before offering them. Reject options that drop required guarantees; do not invent alternatives to fill a quota. Distinguish user decisions from missing evidence and implementation details the agent can derive.
+   Check approaches against settled requirements before offering them. Reject options that drop required guarantees; do not invent alternatives to fill a quota. Distinguish user decisions from missing evidence and implementation details the AI assistant can derive.
 
    Then, if there are multiple valid approaches, present them as structured choices:
 
@@ -364,7 +366,7 @@ Once aligned on approach:
 
 1. **Present plan outline and get structured feedback**:
 
-   First, print the proposed phases as text (informational):
+   First, write the proposed phases as plain assistant text in the same response, before asking the question. This is required, not optional: the user approves this list, so it must be on screen before the question appears.
 
    ```
    Here's my proposed plan structure:
@@ -378,8 +380,8 @@ Once aligned on approach:
    3. [Phase name] - [what it accomplishes]
    ```
 
-   Then ask the user:
-   - question: "Does this phase breakdown look right?"
+   Then ask the user. Repeat the numbered phase names in the question text (one line per phase), so the list is visible even where the host shows only the dialog:
+   - question: "Does this phase breakdown look right?\n1. [Phase name] - [what it accomplishes]\n2. [Phase name] - [what it accomplishes]\n3. [Phase name] - [what it accomplishes]"
      header: "Phases"
      options:
      - label: "⭐ Recommended: Approve phases (Recommended)"
@@ -428,7 +430,7 @@ After writing the full plan, generate a concise brief that gives the reader the 
 On `$10x-plan <change-id> save` (and the persistence route in [plan-persistence.md](references/plan-persistence.md)), **skip this section**. That route already owns one preflight `inspect`, one write, one verification pass and one `mark-planned`. Do not add a second read-back, a second helper run, or a homemade Markdown validator.
 
 1. **Confirm the plan + brief landed in the change folder** (writable in-session planning only; not the save route):
-   - Verify that `context/changes/<change-id>/plan.md` and `context/changes/<change-id>/plan-brief.md` both exist.
+   - Verify `context/changes/<change-id>/plan.md` and `context/changes/<change-id>/plan-brief.md` both exist.
    - Read the persisted content back once. Verify latest decisions and corrections agree across the documents, required plan/brief sections are present, and every phase's Success Criteria maps one-to-one to a canonical Progress row. Only new planning rows must be unchecked; repeated saves preserve existing execution Progress and later lifecycle status under the persistence route. Preserve unrelated metadata. Mechanical checks may read full files while returning only counts, hashes and actionable errors; inspect semantic content against the agreed plan. Do not repeatedly echo all three documents. Only report completion after these checks; file existence alone is insufficient.
 
 2. **Copy quick start command to clipboard**:
@@ -514,10 +516,10 @@ Do this in Step 4 (right after the `change.md` → `planned` stamp). The lookup 
    - Include "what we're NOT doing"
 
 5. **Track Progress**:
-   - Reuse the unresolved-question list; native task capabilities are optional and host-dependent
+   - Reuse the unresolved-question list; native task tools are optional and host-dependent
    - Mark completed, blocked and cancelled work accurately; avoid bookkeeping for a single lookup
 
-6. **MANDATORY: Complexity-Scaled Deep Questioning**:
+6. **MANDATORY: Complexity-Scaled Deep Questioning via native user-question capability**:
    - **BEFORE** writing any plan, you MUST assess complexity (HIGH/MEDIUM/LOW) and get user confirmation
    - Use Step 1.0 upstream scaling, its settled-input exception and the user-confirmed total question budget; the task-only ranges do not override accepted upstream decisions
    - Each question must put one `⭐ Recommended: [short choice] (Recommended)` pick first; every option needs the exact Strength/Tradeoff description format and a header of at most 12 characters

@@ -69,13 +69,13 @@ When this skill is invoked, dispatch BEFORE doing any decomposition work:
 
 ## Interactive prompts — host-agnostic
 
-Whenever the procedure says *"ask the user"*, use whatever structured interactive-question tool the host agent exposes (your AI coding assistant → any tool that asks the user a question with labelled options; on other hosts, any tool that asks the user a question with labelled options). If none is available, fall back to a plain conversational message listing the labelled options — do not block the procedure. State which tool you selected (or that you fell back to plain chat) the first time you ask, so the user can correct you.
+Whenever the procedure says *"ask the user"*, use whatever structured interactive-question capability your AI coding assistant exposes (or any tool that asks the user a question with labelled options). If none is available, fall back to a plain conversational message listing the labelled options — do not block the procedure. State which method you selected (or that you fell back to plain chat) the first time you ask, so the user can correct you.
 
 Question blocks appear in Steps 1, 3, 4, 5, and 9 and in the milestone transitions of `references/milestone-state.md` — short structured choices. Step 5 asks each anchor as its own structured question; its synthesis recap is plain markdown (no extra question).
 
 ## Parallel baseline research — host-agnostic
 
-Whenever the procedure says to use subagents or run parallel probes, use whatever background-research / task-spawn tool the host exposes (your AI coding assistant → an isolated background agent that returns a summary; on other hosts, any tool that spawns an isolated agent and returns a summary), fanning the probes out in one batched call. If none exists, run the same probes sequentially in the main context. Either path must return the same baseline summary shape with file evidence.
+Whenever the procedure says to use subagents or run parallel probes, use whatever background-research / task-spawn capability your AI coding assistant exposes, fanning the probes out in one batched call. If none exists, run the same probes sequentially in the main context. Either path must return the same baseline summary shape with file evidence.
 
 ## Process
 
@@ -108,7 +108,7 @@ test -f "<resolved-path>"
 
 If a file exists, **read it FULLY** (no `limit`/`offset`). If the user chose self-description, capture their description verbatim instead — it becomes the `## Milestone` charter with numbered `MS-NN` scope anchors, and Steps 3's PRD-readiness check is replaced by an anchor check (< 2 distillable `MS-NN` anchors → ask the user to firm up the description, then STOP if they can't).
 
-If a named file does not exist, ask with the selected interactive-question tool:
+If a named file does not exist, ask the user:
 
 Ask the user:
 
@@ -172,7 +172,7 @@ state — the roadmap surfaces what's blocking — but if you have time to firm
 up the PRD first, the resulting roadmap will be substantially more actionable.
 ```
 
-Then ask with the selected interactive-question tool:
+Then ask the user:
 
 Ask the user:
 
@@ -191,7 +191,7 @@ On "Firm up PRD first": print the redirect and STOP. On "Proceed anyway": contin
 
 ### Step 4: Auto-research baseline
 
-The "what's already in place" assessment shouldn't fall on the user — the codebase is the source of truth. Use the selected background research / task-spawn tool, if available, to inventory each layer in parallel. If no such tool exists, run the same probes sequentially in the main context. Each probe returns a one-paragraph verdict: **present** (with file evidence), **absent**, or **partial** (scaffold exists but not wired). Then surface the inventory for user confirmation before it feeds Foundations.
+The "what's already in place" assessment shouldn't fall on the user — the codebase is the source of truth. Use the selected background research / task-spawn capability, if available, to inventory each layer in parallel. If no such capability exists, run the same probes sequentially in the main context. Each probe returns a one-paragraph verdict: **present** (with file evidence), **absent**, or **partial** (scaffold exists but not wired). Then surface the inventory for user confirmation before it feeds Foundations.
 
 **Layers to probe** (skip a layer if `tech-stack.md` already names that layer's choice — report "per tech-stack.md: <choice>" instead of probing):
 
@@ -260,7 +260,7 @@ For each anchor below, derive *both* the Recommend AND the alternatives — grou
 
 **5c. Run the interview — one structured question per anchor, in order.**
 
-For each non-skipped anchor — `main_goal`, then `north_star`, then `top_blocker` — use the selected interactive-question tool. Each question is its own call (sequential, not batched). Format:
+For each non-skipped anchor — `main_goal`, then `north_star`, then `top_blocker` — ask the user. Each question is its own call (sequential, not batched). Format:
 
 Ask the user:
 
@@ -434,7 +434,7 @@ milestone_status: open           # open | done
 # Roadmap: <Project>
 
 > Derived from <source materials> + auto-researched codebase baseline.
-> Edit-in-place; archive when superseded.
+> Edit-in-place; the next milestone continues this file. Archive only when an independent roadmap replaces it.
 > Slices below are listed in dependency order. The "At a glance" table is the index.
 
 ## Milestone
@@ -635,13 +635,15 @@ Then STOP.
 
 ### Step 9: Collision check
 
+**Skip this step when opening the next milestone after a closed one** (`CLOSED → ACTIVE` in `references/milestone-state.md`): the new milestone continues the roadmap and is written in place. This step covers regeneration — re-decomposing an open milestone or replacing a legacy roadmap — and an independent roadmap the user explicitly asked for.
+
 ```bash
 test -f context/foundation/roadmap.md
 ```
 
 If the file does not exist, write to `context/foundation/roadmap.md` and proceed to Step 10.
 
-If the file exists, the foundation-doc convention is **edit-in-place** for incremental refinement, **archive-then-replace** for full regeneration. This skill produces a *full* roadmap from PRD; surgical refinement is out of scope. So default to archive-then-replace, but ask with the selected interactive-question tool:
+If the file exists, the foundation-doc convention is **edit-in-place** for incremental refinement, **archive-then-replace** for full regeneration. This skill produces a *full* roadmap from PRD; surgical refinement is out of scope. So default to archive-then-replace, but ask the user:
 
 Ask the user:
 
@@ -748,11 +750,11 @@ STOP. Do not chain into another skill automatically — the user picks when to p
 
 7. **Surface unknowns, don't paper over them.** Per-slice Unknowns with `Block: yes` promote `Status: blocked`. Cross-cutting unknowns land in `## Open Roadmap Questions`. If the PRD has TODOs, the roadmap inherits them as blocked-slice unknowns. The roadmap's value is partly in showing the user what's NOT yet plannable.
 
-8. **Baseline is auto-researched, not asked.** Don't ask the user "what's already in place?" — use parallel background research agents (Step 4) and let the codebase answer. Then ask the user only to confirm or correct. This is the contract that makes Foundations honest: a foundation only exists when the baseline says the layer is absent or partial.
+8. **Baseline is auto-researched, not asked.** Don't ask the user "what's already in place?" — run parallel baseline probes (Step 4) and let the codebase answer. Then ask the user only to confirm or correct. This is the contract that makes Foundations honest: a foundation only exists when the baseline says the layer is absent or partial.
 
 9. **Self-review aborts on drift.** Missing required sections, broken dep graph, uncovered must-have FRs, invented slices, oversized slices, Foundation layer-completion, Baseline-vs-Foundations contradictions — all abort the write with a specific error. No silent patch-up.
 
-10. **Foundation-doc convention.** `roadmap.md` is a foundation doc per `context/foundation/README.md`. Default collision handling is archive-then-replace (history goes to `foundation/archive/<today>-roadmap.md`); surgical refinement is out of scope for this skill (edit by hand if you need it).
+10. **Foundation-doc convention.** `roadmap.md` is a foundation doc per `context/foundation/README.md`. Default collision handling is archive-then-replace (history goes to `foundation/archive/<today>-roadmap.md`). A successor milestone is not a collision — it continues the roadmap in place and skips Step 9 (see `references/milestone-state.md`). Surgical refinement is out of scope for this skill (edit by hand if you need it).
 
 11. **Universal language only.** No 10xDevs / cohort / certification references in any user-facing output or any artifact written to disk. The skill is a generic roadmap generator.
 

@@ -53,10 +53,16 @@ Writing a phase's code is the expensive part of this session: reading the source
 
 **Ask before the first phase of the run** (the first pending phase, or the one named by a `phase N` argument):
 
-Ask the user: "Phase [N] — how should I implement it?"
+Ask the user:
 
-- **Delegate to a subagent (Recommended)**: A subagent writes the code; I keep the gates, staging, commit and Progress here. Keeps this context lean across a long plan — you see the touched files, adaptations and gate verdicts when it returns.
-- **Implement in this context**: I write the code here so you can watch the edits land and redirect me mid-phase. Costs context — a long plan may need a clear between phases.
+- Question: "Phase [N] — how should I implement it?"
+- Header: "Exec mode"
+- Options:
+  - "Delegate to a subagent (Recommended)"
+    - "A subagent writes the code; I keep the gates, staging, commit and Progress here. Keeps this context lean across a long plan — you see the touched files, adaptations and gate verdicts when it returns."
+  - "Implement in this context"
+    - "I write the code here so you can watch the edits land and redirect me mid-phase. Costs context — a long plan may need a clear between phases."
+- Allow only one selection.
 
 For every later phase the choice rides along with the "Next phase decision" prompt at the end of the commit ritual — no separate question. If the user asked for several phases consecutively (so that prompt is skipped), carry the last chosen mode forward.
 
@@ -64,11 +70,11 @@ Whichever mode is in force, **everything the user has to decide or review stays 
 
 ### Dispatching the implementation subagent
 
-When the phase is delegated, delegate implementation to one general-purpose subagent before the gate stack, whose prompt carries:
+When the phase is delegated, start one general-purpose subagent before the gate stack, whose prompt carries:
 
 - The change-id and the phase number + title.
 - The phase's full plan section verbatim — Overview, Changes Required, Success Criteria. (Success Criteria is context so the subagent knows the target; it does NOT run the gates — you do.)
-- **The implementation discipline to follow.** Resolve `references/implementation-discipline.md` (it sits next to this instruction file) to an **absolute path** and tell the subagent to read and apply it. A spawned subagent has no notion of this instruction file's directory, so a relative path or "read this instruction's reference" will not resolve. Point at the file; do not restate it inline.
+- **The implementation discipline to follow.** Resolve `references/implementation-discipline.md` (it sits next to this `SKILL.md`) to an **absolute path** and tell the subagent to read and apply it. A spawned subagent has no notion of this skill's directory, so a relative path or "read this skill's reference" will not resolve. Point at the file; do not restate it inline.
 - Every entry from `context/foundation/lessons.md`, if present — the subagent cannot read the file unless you paste the entries.
 - The mismatch taxonomy from "Implementation Philosophy": adapt **Minor** mismatches directly and report them; on a **Structural** mismatch, stop and report rather than adapting or redesigning.
 - Hard boundaries: implement code changes ONLY. Do not run the gate stack, do not stage, do not commit, do not touch the `## Progress` section or any checkbox, do not edit Phase blocks, do not go outside the plan's scope. Do not ask the user questions — the user is talking to you, not to the subagent; an open question comes back in the return message instead.
@@ -124,11 +130,18 @@ On a structural mismatch:
   Why this matters: [explanation]
   ```
 
-- Then ask the user: "How should I handle this mismatch?"
+- Then ask the user for a structured decision:
 
-  - **Adapt and continue**: Adjust the implementation to match reality. I'll explain the adaptation.
-  - **Skip this part**: Move on to the next section/phase. This change isn't needed.
-  - **Stop and re-plan**: This mismatch is too significant. We need to update the plan first.
+  - Question: "How should I handle this mismatch?"
+  - Header: "Mismatch"
+  - Options:
+    - "Adapt and continue"
+      - "Adjust the implementation to match reality. I'll explain the adaptation."
+    - "Skip this part"
+      - "Move on to the next section/phase. This change isn't needed."
+    - "Stop and re-plan"
+      - "This mismatch is too significant. We need to update the plan first."
+  - Allow only one selection.
 
 ## Tracking files touched during a phase
 
@@ -227,11 +240,18 @@ Alongside the sequence:
 
   2. **Compute the staging set.** Steps 2–4 already ran once as gate-stack step 2; re-run them here so anything a gate fix touched gets captured. When nothing changed since, they are a no-op. Take the touched-file set maintained during the phase (see "Tracking files touched during a phase" above) and union it with `{context/changes/<change-id>/plan.md}`. The plan file is always staged because each phase produces at least one edit to its `## Progress` section.
 
-  3. **Detect unrelated dirty paths.** Run `git status --porcelain` and intersect with paths *outside* the staging set. If the dirty-but-untouched set is non-empty, present the offending paths and ask the user: "`<N>` unrelated path(s) are dirty. How should I handle them?"
+  3. **Detect unrelated dirty paths.** Run `git status --porcelain` and intersect with paths *outside* the staging set. If the dirty-but-untouched set is non-empty, list the offending paths (with their `git status --short` codes) in a visible chat message, then ask the user, naming the paths in the question text too:
 
-     - **Continue — stage only the planned set (Recommended)**: Commit only files this phase touched. Leave the unrelated paths dirty for you to handle separately.
-     - **Stage all**: Add the unrelated paths to this commit. You take responsibility for the broader scope.
-     - **Abort**: Stop the phase commit. Resolve the dirty paths first, then re-run the ritual.
+     - Question: "`<N>` unrelated path(s) are dirty: `<path>`, `<path>`, ... How should I handle them?"
+     - Header: "Dirty paths"
+     - Options:
+       - "Continue — stage only the planned set (Recommended)"
+         - "Commit only files this phase touched. Leave the unrelated paths dirty for you to handle separately."
+       - "Stage all"
+         - "Add the unrelated paths to this commit. You take responsibility for the broader scope."
+       - "Abort"
+         - "Stop the phase commit. Resolve the dirty paths first, then re-run the ritual."
+     - Allow only one selection.
 
      If the dirty-but-untouched set is empty, skip this step.
 
@@ -245,11 +265,36 @@ Alongside the sequence:
 
      Set `SHA=""` and skip to step 8.
 
-  6. **Propose a Conventional-Commits message.** Build a subject line in the form `<type>(<change-id>): <phase title> (p<N>)`, where `<type>` is one of `feat / fix / chore / refactor / docs` chosen from the phase's nature (e.g., `feat` for new user-visible behavior, `chore` for prompt/doc edits, `refactor` for restructuring without behavior change). The phase title is the meaningful part and leads; the `(p<N>)` suffix carries the phase index. Build a short body listing the touched files, plus the `Refs:` line from "Tracking issue/task references for commits" when applicable. Ask the user: "Approve commit message?"
+  6. **Propose a Conventional-Commits message.** Build a subject line in the form `<type>(<change-id>): <phase title> (p<N>)`, where `<type>` is one of `feat / fix / chore / refactor / docs` chosen from the phase's nature (e.g., `feat` for new user-visible behavior, `chore` for prompt/doc edits, `refactor` for restructuring without behavior change). The phase title is the meaningful part and leads; the `(p<N>)` suffix carries the phase index. Build a short body listing the touched files, plus the `Refs:` line from "Tracking issue/task references for commits" when applicable.
 
-     - **Approve as proposed (Recommended)**: Use the message as drafted.
-     - **Edit subject line**: Override the subject; keep the body.
-     - **Override entirely**: Replace both subject and body.
+     **Show what will be committed before asking.** Run `git diff --cached --stat` (the staged set is exactly what the commit will contain) and write this as plain assistant text in the same response, before asking the user — a response that opens with a question here is wrong:
+
+     ```
+     Proposed commit for Phase [N]:
+
+     Files (git diff --cached --stat):
+      <path> | <changes>
+      ...
+      <N> files changed, <X> insertions(+), <Y> deletions(-)
+
+     Message:
+     <subject>
+
+     <body>
+     ```
+
+     Then ask the user, repeating the subject and the staged files with their `--stat` counts in the question text so they are visible even where the host shows only the dialog. Without a native question capability, ask the same question as plain text after that message and wait for the answer:
+
+     - Question: "Approve commit message?\n<subject>\nFiles (<N>, +<X> −<Y>): <path> (+a −b), <path> (+c −d), ..."
+     - Header: "Commit msg"
+     - Options:
+       - "Approve as proposed (Recommended)"
+         - "Use the message as drafted."
+       - "Edit subject line"
+         - "Override the subject; keep the body."
+       - "Override entirely"
+         - "Replace both subject and body."
+     - Allow only one selection.
 
   7. **Commit via heredoc.** Run `git commit` per the global commit-message protocol:
 
@@ -265,9 +310,9 @@ Alongside the sequence:
 
      Never pass `--no-verify`, `--amend`, or signing-bypass flags. If a pre-commit hook fails, fix the underlying issue and create a NEW commit — the original commit did NOT happen, so amending would touch the previous phase's commit instead.
 
-  8. **Capture the short SHA.** Run `git rev-parse --short HEAD` and store as `SHA`. Skip this step if `SHA=""` was set by step 5.
+  8. **Capture the short SHA.** Run `git rev-parse --short HEAD` and store as `SHA`, then print `Committed: <SHA> <subject>`. Skip this step if `SHA=""` was set by step 5.
 
-  9. **Write the SHA back into Progress.** For every Progress row flipped during this phase, run a targeted edit:
+  9. **Write the SHA back into Progress.** For every Progress row flipped during this phase, apply a targeted edit:
 
      - Find: `- [x] N.M <title>` (no existing ` — <sha>` suffix at end of line)
      - Replace with: `- [x] N.M <title> — <SHA>`
@@ -280,12 +325,20 @@ Alongside the sequence:
 
 - **Next phase decision**: If there is a next phase, help the user decide whether to continue or start fresh.
 
-  Ask the user: "Phase [N] complete. How to proceed?"
+  Ask the user:
 
-  - **Continue to Phase [N+1] — delegate**: Proceed to the next phase with a subagent writing the code. Keeps this context lean; you see the touched files, adaptations and gate verdicts when it returns.
-  - **Continue to Phase [N+1] — in context**: Proceed to the next phase and write the code here, where you can watch the edits land and redirect mid-phase.
-  - **Clear context first**: Copy resume command to clipboard. Start fresh for Phase [N+1].
-  - **Review this phase first**: Run /10x-impl-review to verify implementation against the plan before proceeding.
+  - Question: "Phase [N] complete (commit <SHA> <subject>; \"no commit\" for an empty diff). How to proceed?"
+  - Header: "Next phase"
+  - Options:
+    - "Continue to Phase [N+1] — delegate"
+      - "Proceed to the next phase with a subagent writing the code. Keeps this context lean; you see the touched files, adaptations and gate verdicts when it returns."
+    - "Continue to Phase [N+1] — in context"
+      - "Proceed to the next phase and write the code here, where you can watch the edits land and redirect mid-phase."
+    - "Clear context first"
+      - "Copy resume command to clipboard. Start fresh for Phase [N+1]."
+    - "Review this phase first"
+      - "Run /10x-impl-review to verify implementation against the plan before proceeding."
+  - Allow only one selection.
 
   **If user chooses to review**: Run `/10x-impl-review @[path-to-plan] phase [N]` to review the just-completed phase. After the review completes, re-present the continue/clear decision (without the review option this time).
 
@@ -306,7 +359,7 @@ Alongside the sequence:
      → /10x-implement <change-id> phase [next-phase-number] (✓ copied)
      ```
 
-If instructed to execute multiple phases consecutively, skip the user question between phases and carry the last chosen execution mode forward.
+If instructed to execute multiple phases consecutively, skip asking the user between phases and carry the last chosen execution mode forward.
 
 do not check off items in the manual testing steps until confirmed by the user.
 
@@ -336,10 +389,16 @@ Empty-diff phases (manual-verification-only or no-op adapted phases) commit noth
 
 When every `- [ ]` in the entire `## Progress` section is now `- [x]`:
 
-1. **Defensive pending-items surface.** Re-scan the entire `## Progress` section one last time for any `- [ ]` rows. Under normal flow this is a no-op — the trigger condition for "After all phases" is already "every `- [ ]` is `- [x]`", so the surface should find nothing. It exists to make any unexpected stragglers explicit rather than silently lost (e.g., if a partial run, a manual edit, or a resume path bypassed the trigger). If the count is non-zero, list each row as `<phase>.<index> <title>` grouped by Automated vs Manual subsection in document order, then ask the user: "`<N>` Progress item(s) still pending. How to proceed?"
+1. **Defensive pending-items surface.** Re-scan the entire `## Progress` section one last time for any `- [ ]` rows. Under normal flow this is a no-op — the trigger condition for "After all phases" is already "every `- [ ]` is `- [x]`", so the surface should find nothing. It exists to make any unexpected stragglers explicit rather than silently lost (e.g., if a partial run, a manual edit, or a resume path bypassed the trigger). If the count is non-zero, list each row as `<phase>.<index> <title>` grouped by Automated vs Manual subsection in document order, then ask the user:
 
-   - **Pause (Recommended)**: STOP without flipping `change.md.status`. Address the stragglers manually, then re-enter the epilogue path.
-   - **Proceed to epilogue**: Flip status: implemented and run the epilogue commit anyway. Stragglers will surface as warnings under /10x-archive.
+   - Question: "`<N>` Progress item(s) still pending. How to proceed?"
+   - Header: "Stragglers"
+   - Options:
+     - "Pause (Recommended)"
+       - "STOP without flipping change.md.status. Address the stragglers manually, then re-enter the epilogue path."
+     - "Proceed to epilogue"
+       - "Flip status: implemented and run the epilogue commit anyway. Stragglers will surface as warnings under /10x-archive."
+   - Allow only one selection.
 
    On "Pause": STOP immediately. Do NOT update `change.md`, do NOT run the epilogue commit. On "Proceed to epilogue": continue with steps 2–4 below. If the count is zero, skip this step and continue.
 
@@ -348,7 +407,7 @@ When every `- [ ]` in the entire `## Progress` section is now `- [x]`:
 4. **Run the epilogue commit.** The final phase's commit cannot contain its own SHA (chicken-and-egg), so the SHA write-back into the final phase's Progress rows plus the `change.md` status flip both sit dirty in the working tree after the final phase ritual returns. Author one closing commit to land them — otherwise `/10x-archive`'s hard-refusal gate (uncommitted paths inside the change folder) will block. Steps:
    1. Stage exactly `context/changes/<change-id>/plan.md` and `context/changes/<change-id>/change.md` (explicit paths, no `git add -A`).
    2. Run `git diff --cached --quiet`; if exit code 0, skip the epilogue (nothing trailing to commit) and stop here.
-   3. Propose subject `chore(<change-id>): close out plan (epilogue)` with a short body noting the plan's final SHA write-back + change.md → implemented, plus the `Refs:` line from "Tracking issue/task references for commits" when applicable. Ask the user to approve as proposed, edit subject, or override entirely (same options as the phase ritual).
+   3. Propose subject `chore(<change-id>): close out plan (epilogue)` with a short body noting the plan's final SHA write-back + change.md → implemented, plus the `Refs:` line from "Tracking issue/task references for commits" when applicable. Show what will be committed exactly as in the phase ritual (visible message with `git diff --cached --stat` and the full message, then the subject and file paths in the question text), then ask the user to approve as proposed / edit subject / override entirely (same options as the phase ritual).
    4. Commit via heredoc per the global protocol (never `--no-verify` / `--amend`).
    5. Do NOT write the epilogue's own SHA back into the plan — its only job is to land the trailing edits cleanly.
 
@@ -371,10 +430,18 @@ Summary:
 - Files changed: [list key files]
 ```
 
-Ask the user: "Plan complete. Would you like a final implementation review?"
+Ask the user:
 
-- **Run full review (/10x-impl-review)**: Comprehensive review of all phases against the plan. Catches cross-phase issues.
-- **Skip review — I'm satisfied**: No review needed. Mark the plan as done.
+```
+Question: "Plan complete. Would you like a final implementation review?"
+Header: "Plan Complete"
+Options:
+  - "Run full review (/10x-impl-review)"
+    - "Comprehensive review of all phases against the plan. Catches cross-phase issues."
+  - "Skip review — I'm satisfied"
+    - "No review needed. Mark the plan as done."
+Allow only one selection.
+```
 
 If user chooses review → run `/10x-impl-review <change-id>` (no phase number = full plan review).
 
