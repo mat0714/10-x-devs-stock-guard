@@ -354,25 +354,25 @@ Add the management command that makes the boundary testable by hand and gives S-
 
 #### Automated
 
-- [x] 2.1 Adapter tests pass
-- [x] 2.2 Django system checks pass
+- [x] 2.1 Adapter tests pass — a604cb7
+- [x] 2.2 Django system checks pass — a604cb7
 
 #### Manual
 
-- [x] 2.3 A real AAPL request returns ~500 ascending bars matching the provider's last completed close
+- [x] 2.3 A real AAPL request returns ~500 ascending bars matching the provider's last completed close — a604cb7
 
 ### Phase 3: Fetch service with DB cache
 
 #### Automated
 
-- [ ] 3.1 Service tests pass
-- [ ] 3.2 Full app suite passes
-- [ ] 3.3 Migration drift check is clean
-- [ ] 3.4 Django system checks pass
+- [x] 3.1 Service tests pass
+- [x] 3.2 Full app suite passes
+- [x] 3.3 Migration drift check is clean
+- [x] 3.4 Django system checks pass
 
 #### Manual
 
-- [ ] 3.5 Second fetch before the next NY close returns `cached` with no outbound request
+- [x] 3.5 Second fetch before the next NY close returns `cached` with no outbound request
 
 ### Phase 4: Smoke command & verification
 
