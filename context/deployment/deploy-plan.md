@@ -300,6 +300,19 @@ These remain human panel actions per the infra doc's approval boundary. The agen
 - **Delete the Postgres service or a project volume**: panel-only.
 - **Change the billing plan / region**: panel-only (region is Pro-only).
 
+### Secret-rotation runbook (verified 2026-10-25 — after the Railway env-var incident)
+
+Context: Railway disclosed unauthorized access to encrypted env vars; recommended revoke-and-reissue of every variable stored in Railway. Applied here. Order matters — the DB role hash lives on the persistent volume, so a Variables change alone does NOT rotate the password.
+
+1. **Inventory first.** `railway variables --service stock-guard --kv` and `--service Postgres --kv` (redact values). This project stores: `SECRET_KEY`, `DATABASE_URL` (literal, contains the Postgres password), and the Postgres service's `PGPASSWORD`/`POSTGRES_PASSWORD`. `TWELVE_DATA_API_KEY` is **not yet deployed** (F-02 not live), so no external API key was in scope for this incident.
+2. **`SECRET_KEY`**: generate with `get_random_secret_key()` and `railway variables set SECRET_KEY --stdin` (never echo it). Effect: all sessions log out. Does not require a DB touch.
+3. **Postgres password**: set a new `POSTGRES_PASSWORD` (the template propagates `PGPASSWORD` and the service's own `DATABASE_URL`), **then SSH into the Postgres container and run `ALTER ROLE postgres WITH PASSWORD '<new>';`** over the local socket (`psql -U postgres -h /var/run/postgresql`) — `railway restart` of the DB does NOT rotate the role, the log shows `Skipping initialization`. Rename the app service's literal `DATABASE_URL` to reference the DB service so future rotations auto-propagate (dashboard-only edit; the CLI/API resolve the reference at write time and store a literal).
+4. **Redeploy the app** so it reconnects with the new password (`railway redeploy --service stock-guard`). A deploy that fails on `FATAL: password authentication failed` means the role hash and `DATABASE_URL` are out of sync.
+5. **Verify a DB-touching path, not just `/health/`**: `/health/` is DB-free and returns 200 even while the DB is unreachable. Confirm the `preDeployCommand` migrate line in the deploy log succeeded and probe `/login/` → 200, `/admin/` → 302.
+6. **Rotate the Railway access token** used for CLI access if it was ever exposed (paste into a chat, log, or shell history) — treat it as compromised and revoke in the dashboard.
+
+> SSH access gate: `railway ssh` needs a registered key, but the CLI's key-add path silently fails when the local key is agent-held (`all local SSH keys are already registered`). Workaround used: register the public key via the GraphQL `sshPublicKeyCreate` mutation (`railway api`), then delete it after the rotation.
+
 ## Open / deferred items (NOT in this plan, recorded for the next milestone)
 
 - **ruff + mypy config + CI jobs**: AGENTS.md mandates mypy enforcement; add when there's feature code worth typing. Wire into the existing `.github/workflows/ci.yml` structure.
