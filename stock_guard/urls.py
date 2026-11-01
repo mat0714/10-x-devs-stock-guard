@@ -28,4 +28,5 @@ urlpatterns = [
     path('health/', health, name='health'),
     path('admin/', admin.site.urls),
     path('', include('accounts.urls')),
+    path('', include('watchlist.urls')),
 ]

@@ -2,7 +2,7 @@ from django.contrib.auth.views import LoginView, LogoutView
 from django.urls import path
 
 from .forms import EmailAuthenticationForm
-from .views import home, register
+from .views import register
 
 urlpatterns = [
     path(
@@ -12,5 +12,4 @@ urlpatterns = [
     ),
     path("logout/", LogoutView.as_view(), name="logout"),
     path("register/", register, name="register"),
-    path("", home, name="home"),
 ]

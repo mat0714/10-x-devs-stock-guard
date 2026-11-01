@@ -1,6 +1,5 @@
 from django.conf import settings
 from django.contrib.auth import login
-from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError, transaction
 from django.shortcuts import redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -34,8 +33,3 @@ def _safe_next(request):
     ):
         return next_url
     return settings.LOGIN_REDIRECT_URL
-
-
-@login_required
-def home(request):
-    return render(request, "accounts/home.html")
