@@ -271,13 +271,13 @@ One new table (`watchlist_watchlistitem`) via a single committed migration, appl
 
 #### Automated
 
-- [ ] 1.1 Django system checks pass
-- [ ] 1.2 No migration drift remains
-- [ ] 1.3 Migration applies cleanly
+- [x] 1.1 Django system checks pass
+- [x] 1.2 No migration drift remains
+- [x] 1.3 Migration applies cleanly
 
 #### Manual
 
-- [ ] 1.4 WatchlistItem is importable in the shell and the app is registered
+- [x] 1.4 WatchlistItem is importable in the shell and the app is registered
 
 ### Phase 2: Add & list surface
 
