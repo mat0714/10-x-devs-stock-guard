@@ -1,8 +1,10 @@
 from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError, transaction
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 
 from .forms import WatchlistItemForm
+from .models import WatchlistItem
 
 
 @login_required
@@ -26,3 +28,11 @@ def index(request):
         'watchlist/list.html',
         {'form': form, 'items': request.user.watchlist_items.all()},
     )
+
+
+@login_required
+@require_POST
+def remove(request, pk):
+    item = get_object_or_404(WatchlistItem, pk=pk, user=request.user)
+    item.delete()
+    return redirect('watchlist')

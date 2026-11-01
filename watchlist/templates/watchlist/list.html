@@ -16,7 +16,13 @@
   {% if items %}
     <ul>
       {% for item in items %}
-        <li>{{ item.symbol }}{% if item.name %} ({{ item.name }}){% endif %}</li>
+        <li>
+          {{ item.symbol }}{% if item.name %} ({{ item.name }}){% endif %}
+          <form method="post" action="{% url 'watchlist_remove' item.pk %}">
+            {% csrf_token %}
+            <button type="submit">Remove</button>
+          </form>
+        </li>
       {% endfor %}
     </ul>
   {% else %}

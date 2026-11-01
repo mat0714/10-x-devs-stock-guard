@@ -283,26 +283,26 @@ One new table (`watchlist_watchlistitem`) via a single committed migration, appl
 
 #### Automated
 
-- [x] 2.1 Django system checks pass
-- [x] 2.2 No migration drift remains
-- [x] 2.3 Static collection succeeds
+- [x] 2.1 Django system checks pass — 8ae4370
+- [x] 2.2 No migration drift remains — 8ae4370
+- [x] 2.3 Static collection succeeds — 8ae4370
 
 #### Manual
 
-- [ ] 2.4 A logged-in user can add a stock from / and it appears in the list
-- [ ] 2.5 The list shows only the acting user's stocks, ordered A→Z, with the email visible
-- [ ] 2.6 Invalid and duplicate tickers show inline form errors, not a 500
-- [ ] 2.7 A blank name displays the ticker only
+- [x] 2.4 A logged-in user can add a stock from / and it appears in the list — 8ae4370
+- [x] 2.5 The list shows only the acting user's stocks, ordered A→Z, with the email visible — 8ae4370
+- [x] 2.6 Invalid and duplicate tickers show inline form errors, not a 500 — 8ae4370
+- [x] 2.7 A blank name displays the ticker only — 8ae4370
 
 ### Phase 3: Remove flow + test suite
 
 #### Automated
 
-- [ ] 3.1 Watchlist test suite passes
-- [ ] 3.2 Existing auth test suite still passes
-- [ ] 3.3 Django system checks pass
+- [x] 3.1 Watchlist test suite passes
+- [x] 3.2 Existing auth test suite still passes
+- [x] 3.3 Django system checks pass
 
 #### Manual
 
-- [ ] 3.4 Clicking a row's Remove button takes the stock off the list
-- [ ] 3.5 Another user's row delete URL does not remove their stock
+- [x] 3.4 Clicking a row's Remove button takes the stock off the list
+- [x] 3.5 Another user's row delete URL does not remove their stock
