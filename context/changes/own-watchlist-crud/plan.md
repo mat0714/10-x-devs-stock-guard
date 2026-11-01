@@ -298,11 +298,11 @@ One new table (`watchlist_watchlistitem`) via a single committed migration, appl
 
 #### Automated
 
-- [x] 3.1 Watchlist test suite passes
-- [x] 3.2 Existing auth test suite still passes
-- [x] 3.3 Django system checks pass
+- [x] 3.1 Watchlist test suite passes — 20c29f9
+- [x] 3.2 Existing auth test suite still passes — 20c29f9
+- [x] 3.3 Django system checks pass — 20c29f9
 
 #### Manual
 
-- [x] 3.4 Clicking a row's Remove button takes the stock off the list
-- [x] 3.5 Another user's row delete URL does not remove their stock
+- [x] 3.4 Clicking a row's Remove button takes the stock off the list — 20c29f9
+- [x] 3.5 Another user's row delete URL does not remove their stock — 20c29f9

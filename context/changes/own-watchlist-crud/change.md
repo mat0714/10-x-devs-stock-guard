@@ -1,7 +1,7 @@
 ---
 change_id: own-watchlist-crud
 title: Own watchlist CRUD
-status: implementing
+status: implemented
 created: 2026-11-01
 updated: 2026-11-01
 archived_at: null
