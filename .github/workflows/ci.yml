@@ -25,6 +25,9 @@ jobs:
       - name: Migration drift check
         run: uv run python manage.py makemigrations --check --dry-run
 
+      - name: Test suite
+        run: uv run python manage.py test
+
       - name: Collect static (parity with prod startCommand)
         run: uv run python manage.py collectstatic --noinput
 

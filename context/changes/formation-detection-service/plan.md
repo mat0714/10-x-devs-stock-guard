@@ -395,24 +395,24 @@ Add the `score_symbol` command for tuning and debugging, wire the Django test ru
 
 #### Automated
 
-- [x] 3.1 Watchlist test suite passes
-- [x] 3.2 Existing auth suite still passes
-- [x] 3.3 Django system checks pass
-- [x] 3.4 No migration drift remains
+- [x] 3.1 Watchlist test suite passes — 83e41fd
+- [x] 3.2 Existing auth suite still passes — 83e41fd
+- [x] 3.3 Django system checks pass — 83e41fd
+- [x] 3.4 No migration drift remains — 83e41fd
 
 #### Manual
 
-- [x] 3.5 The list page shows a graded badge on a formation, none on a quiet symbol, and a message when the key is removed
+- [x] 3.5 The list page shows a graded badge on a formation, none on a quiet symbol, and a message when the key is removed — 83e41fd
 
 ### Phase 4: Inspect command, CI test step & verification
 
 #### Automated
 
-- [ ] 4.1 Full test suite passes
-- [ ] 4.2 Django system checks pass
-- [ ] 4.3 Static collection still succeeds
+- [x] 4.1 Full test suite passes
+- [x] 4.2 Django system checks pass
+- [x] 4.3 Static collection still succeeds
 
 #### Manual
 
-- [ ] 4.4 `score_symbol AAPL` prints pattern/stage/grade with evidence and exits 0
-- [ ] 4.5 The new CI test step runs and passes on push/PR
+- [x] 4.4 `score_symbol AAPL` prints pattern/stage/grade with evidence and exits 0
+- [x] 4.5 The new CI test step runs and passes on push/PR

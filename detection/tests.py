@@ -1,12 +1,20 @@
 from datetime import date, timedelta
 from decimal import Decimal
+from io import StringIO
+from unittest.mock import patch
 
+from django.core.management import call_command
 from django.test import TestCase
 
 from detection.pivots import atr, find_pivots
-from detection.services import score_formation
+from detection.services import (
+    FormationEvidence,
+    FormationScore,
+    PivotRef,
+    score_formation,
+)
 from marketdata.providers import Candle
-from marketdata.services import PriceSeries
+from marketdata.services import PriceSeries, PriceUnavailable
 
 
 def _candles(rows, *, start=date(2024, 1, 1)):
@@ -248,3 +256,48 @@ class ScoreFormationTests(TestCase):
         self.assertEqual(result.pattern, "double_top")
         self.assertEqual(result.stage, "forming")
         self.assertNotEqual(result.grade, "none")
+
+
+class ScoreSymbolCommandTests(TestCase):
+    def test_scoreSymbolCommandReturnsGradedOutputWhenSeriesIsScoreable(self):
+        score = FormationScore(
+            pattern="double_top",
+            stage="forming",
+            grade="high",
+            score=0.812,
+            evidence=FormationEvidence(
+                pivots=(
+                    PivotRef(date=date(2024, 1, 2), price=100.0, kind="high"),
+                ),
+                neckline=98.5,
+            ),
+        )
+        out = StringIO()
+
+        with (
+            patch(
+                "detection.management.commands.score_symbol.fetch_daily_candles",
+                return_value=PriceSeries(symbol="AAPL", candles=(), status="ok"),
+            ),
+            patch(
+                "detection.management.commands.score_symbol.score_formation",
+                return_value=score,
+            ),
+        ):
+            call_command("score_symbol", "AAPL", stdout=out)
+
+        output = out.getvalue()
+        self.assertIn("grade=high", output)
+        self.assertIn("pattern=double_top", output)
+        self.assertIn("score=0.812", output)
+
+    def test_scoreSymbolCommandReturnsReasonWhenFetchIsUnavailable(self):
+        out = StringIO()
+
+        with patch(
+            "detection.management.commands.score_symbol.fetch_daily_candles",
+            return_value=PriceUnavailable(symbol="AAPL", reason="not_configured"),
+        ):
+            call_command("score_symbol", "AAPL", stdout=out)
+
+        self.assertIn("reason=not_configured", out.getvalue())
