@@ -9,7 +9,11 @@ from detection.patterns import (
     score_double_top,
     score_head_shoulders,
 )
-from detection.pivots import atr, find_pivots
+from detection.pivots import (
+    atr_from_arrays,
+    find_pivots_from_arrays,
+    float_arrays,
+)
 from marketdata.services import PriceSeries
 
 ATR_PERIOD = 14
@@ -65,12 +69,17 @@ def score_formation(price_series: PriceSeries) -> FormationScore:
     if len(candles) < MIN_BARS:
         return _NO_SIGNAL
 
-    atr_value = atr(candles, ATR_PERIOD)
+    high, low, close = float_arrays(candles)
+    atr_value = atr_from_arrays(high, low, close, ATR_PERIOD)
     if atr_value is None or atr_value <= 0:
         return _NO_SIGNAL
 
-    pivots = find_pivots(
-        candles, atr_value=atr_value, deviation=PIVOT_DEVIATION
+    pivots = find_pivots_from_arrays(
+        candles,
+        high,
+        low,
+        atr_value=atr_value,
+        deviation=PIVOT_DEVIATION,
     )
     candidates = [
         candidate

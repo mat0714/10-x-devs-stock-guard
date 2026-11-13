@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 
 from django.contrib.auth.decorators import login_required
@@ -10,6 +11,8 @@ from marketdata.services import PriceSeries, fetch_daily_candles
 
 from .forms import WatchlistItemForm
 from .models import WatchlistItem
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -37,6 +40,9 @@ def _build_row(item: WatchlistItem) -> Row:
             message=result.message or result.reason.replace('_', ' '),
         )
     except Exception:
+        _logger.warning(
+            'Formation analysis failed for %s', item.symbol, exc_info=True
+        )
         return Row(
             item=item, score=None, stale=False, message='analysis failed'
         )

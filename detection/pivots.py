@@ -24,7 +24,16 @@ def atr(candles: Sequence[Candle], period: int) -> float | None:
     """
     if period <= 0 or len(candles) < period + 1:
         return None
-    high, low, close = _arrays(candles)
+    high, low, close = float_arrays(candles)
+    return atr_from_arrays(high, low, close, period)
+
+
+def atr_from_arrays(
+    high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int
+) -> float | None:
+    """Average true range from precomputed float arrays."""
+    if period <= 0 or len(close) < period + 1:
+        return None
     previous_close = close[:-1]
     true_range = np.maximum.reduce(
         [
@@ -50,8 +59,22 @@ def find_pivots(
     if not candles or atr_value <= 0 or deviation <= 0:
         return []
 
+    high, low, _ = float_arrays(candles)
+    return find_pivots_from_arrays(
+        candles, high, low, atr_value=atr_value, deviation=deviation
+    )
+
+
+def find_pivots_from_arrays(
+    candles: Sequence[Candle],
+    high: np.ndarray,
+    low: np.ndarray,
+    *,
+    atr_value: float,
+    deviation: float,
+) -> list[Pivot]:
+    """Causal ZigZag scan over precomputed high/low float arrays."""
     threshold = deviation * atr_value
-    high, low, _ = _arrays(candles)
     pivots: list[Pivot] = []
     direction = "up"
     extreme_index = 0
@@ -111,7 +134,9 @@ def find_pivots(
     return pivots
 
 
-def _arrays(candles: Sequence[Candle]) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def float_arrays(
+    candles: Sequence[Candle],
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     high = np.array([float(candle.high) for candle in candles], dtype=float)
     low = np.array([float(candle.low) for candle in candles], dtype=float)
     close = np.array([float(candle.close) for candle in candles], dtype=float)
