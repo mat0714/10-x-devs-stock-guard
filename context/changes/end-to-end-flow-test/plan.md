@@ -193,17 +193,17 @@ Confirm the new test is green within the whole suite and that nothing regressed,
 
 #### Manual
 
-- [x] 1.4 The journey reads legibly and the asserted badge traces to the real engine's output for the planted series — b105303
+- [x] 1.4 The journey reads legibly and the asserted badge traces to the real engine's output for the planted series — 0845469
 
 ### Phase 2: Full-suite verification
 
 #### Automated
 
-- [x] 2.1 Full test suite passes: `uv run python manage.py test`
-- [x] 2.2 Django system checks pass: `uv run python manage.py check`
-- [x] 2.3 No migration drift remains: `uv run python manage.py makemigrations --check --dry-run`
-- [x] 2.4 Static collection still succeeds: `uv run python manage.py collectstatic --noinput`
+- [x] 2.1 Full test suite passes: `uv run python manage.py test` — 0845469
+- [x] 2.2 Django system checks pass: `uv run python manage.py check` — 0845469
+- [x] 2.3 No migration drift remains: `uv run python manage.py makemigrations --check --dry-run` — 0845469
+- [x] 2.4 Static collection still succeeds: `uv run python manage.py collectstatic --noinput` — 0845469
 
 #### Manual
 
-- [x] 2.5 Reviewer confirms the new test is the only change and asserts the flagged-list outcome from the user's perspective
+- [x] 2.5 Reviewer confirms the new test is the only change and asserts the flagged-list outcome from the user's perspective — 0845469
