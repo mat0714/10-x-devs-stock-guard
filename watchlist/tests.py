@@ -1,11 +1,14 @@
 import time
+from datetime import date, timedelta
+from decimal import Decimal
 from unittest.mock import patch
 
 from django.conf import settings
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase, override_settings
 
 from detection.services import FormationScore
+from marketdata.providers import Candle
 from marketdata.services import PriceSeries, PriceUnavailable
 
 from .models import WatchlistItem
@@ -386,3 +389,74 @@ class ScanWatchlistTests(TestCase):
 
         self.assertEqual(len(default_rows), 2)
         self.assertEqual(len(oversized_rows), 2)
+
+
+FORMING_DOUBLE_TOP_LEGS = (
+    (10, -0.4),
+    (20, 1.0),
+    (20, -0.6),
+    (20, 0.6),
+    (5, 0.0),
+)
+
+
+def _planted_double_top(
+    legs,
+    *,
+    start=104.0,
+    spread=0.5,
+    start_date=date(2024, 1, 1),
+):
+    closes = []
+    price = start
+    for bars, step in legs:
+        for _ in range(bars):
+            price += step
+            closes.append(price)
+    candles = []
+    previous = start
+    for offset, close in enumerate(closes):
+        candles.append(
+            Candle(
+                date=start_date + timedelta(days=offset),
+                open=Decimal(str(round(previous, 4))),
+                high=Decimal(str(round(close + spread, 4))),
+                low=Decimal(str(round(close - spread, 4))),
+                close=Decimal(str(round(close, 4))),
+                volume=None,
+            )
+        )
+        previous = close
+    return tuple(candles)
+
+
+class EndToEndFlowTests(TransactionTestCase):
+    def setUp(self):
+        self.email = "marek@example.com"
+        User.objects.create_user(
+            username=self.email,
+            email=self.email,
+            password=PASSWORD,
+        )
+        self.client.post(
+            "/login/", {"username": self.email, "password": PASSWORD}
+        )
+
+    @override_settings(TWELVE_DATA_API_KEY="test-key")
+    def test_keyFlowReturnsFlaggedRowWhenUserLogsInAddsStockAndListIsScanned(self):
+        add_response = self.client.post("/", {"symbol": "AAPL", "name": ""})
+        self.assertRedirects(add_response, "/", fetch_redirect_response=False)
+
+        with patch(
+            "marketdata.services.twelvedata.fetch_daily"
+        ) as fetch:
+            fetch.return_value = list(
+                _planted_double_top(FORMING_DOUBLE_TOP_LEGS)
+            )
+
+            response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "AAPL")
+        self.assertContains(response, "badge")
+        self.assertContains(response, "Double top")
