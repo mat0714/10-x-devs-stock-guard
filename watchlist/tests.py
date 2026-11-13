@@ -1,5 +1,10 @@
+from unittest.mock import patch
+
 from django.contrib.auth.models import User
 from django.test import TestCase
+
+from detection.services import FormationScore
+from marketdata.services import PriceSeries, PriceUnavailable
 
 from .models import WatchlistItem
 
@@ -14,6 +19,12 @@ class AddWatchlistItemTests(TestCase):
             password=PASSWORD,
         )
         self.client.login(username="marek@example.com", password=PASSWORD)
+        self.fetch_patcher = patch("watchlist.views.fetch_daily_candles")
+        self.fetch = self.fetch_patcher.start()
+        self.addCleanup(self.fetch_patcher.stop)
+        self.fetch.return_value = PriceUnavailable(
+            symbol="AAPL", reason="not_configured"
+        )
 
     def test_addReturnsNormalizedSymbolWhenSymbolHasMixedCaseAndSpaces(self):
         self.client.post("/", {"symbol": "  aapl  ", "name": ""})
@@ -66,6 +77,12 @@ class WatchlistListTests(TestCase):
             email="bob@example.com",
             password=PASSWORD,
         )
+        self.fetch_patcher = patch("watchlist.views.fetch_daily_candles")
+        self.fetch = self.fetch_patcher.start()
+        self.addCleanup(self.fetch_patcher.stop)
+        self.fetch.return_value = PriceUnavailable(
+            symbol="AAPL", reason="not_configured"
+        )
 
     def test_listReturnsOnlyOwnRowsWhenAnotherUserHasItems(self):
         WatchlistItem.objects.create(user=self.alice, symbol="AAPL")
@@ -106,6 +123,12 @@ class RemoveWatchlistItemTests(TestCase):
             email="bob@example.com",
             password=PASSWORD,
         )
+        self.fetch_patcher = patch("watchlist.views.fetch_daily_candles")
+        self.fetch = self.fetch_patcher.start()
+        self.addCleanup(self.fetch_patcher.stop)
+        self.fetch.return_value = PriceUnavailable(
+            symbol="AAPL", reason="not_configured"
+        )
 
     def test_removeReturnsRedirectToHomeAndDeletesRowWhenPostedAuthenticated(self):
         item = WatchlistItem.objects.create(user=self.alice, symbol="AAPL")
@@ -132,3 +155,102 @@ class RemoveWatchlistItemTests(TestCase):
 
         self.assertEqual(response.status_code, 404)
         self.assertTrue(WatchlistItem.objects.filter(pk=item.pk).exists())
+
+
+class RowRenderingTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="alice@example.com",
+            email="alice@example.com",
+            password=PASSWORD,
+        )
+        WatchlistItem.objects.create(user=self.user, symbol="AAPL")
+        self.client.login(username="alice@example.com", password=PASSWORD)
+
+    def test_listReturnsGradeBadgeWhenScoreGradeIsHigh(self):
+        with patch("watchlist.views.fetch_daily_candles") as fetch, patch(
+            "watchlist.views.score_formation"
+        ) as score:
+            fetch.return_value = PriceSeries(
+                symbol="AAPL", candles=(), status="ok"
+            )
+            score.return_value = FormationScore(
+                pattern="double_top",
+                stage="forming",
+                grade="high",
+                score=0.82,
+                evidence=None,
+            )
+
+            response = self.client.get("/")
+
+        self.assertContains(response, "badge")
+        self.assertContains(response, "grade-high")
+
+    def test_listReturnsConfirmedLabelWhenScoreStageIsConfirmed(self):
+        with patch("watchlist.views.fetch_daily_candles") as fetch, patch(
+            "watchlist.views.score_formation"
+        ) as score:
+            fetch.return_value = PriceSeries(
+                symbol="AAPL", candles=(), status="ok"
+            )
+            score.return_value = FormationScore(
+                pattern="double_top",
+                stage="confirmed",
+                grade="high",
+                score=0.85,
+                evidence=None,
+            )
+
+            response = self.client.get("/")
+
+        self.assertContains(response, "confirmed")
+
+    def test_listReturnsStaleMarkerWhenSeriesIsStale(self):
+        with patch("watchlist.views.fetch_daily_candles") as fetch, patch(
+            "watchlist.views.score_formation"
+        ) as score:
+            fetch.return_value = PriceSeries(
+                symbol="AAPL", candles=(), status="stale"
+            )
+            score.return_value = FormationScore(
+                pattern="double_top",
+                stage="forming",
+                grade="medium",
+                score=0.5,
+                evidence=None,
+            )
+
+            response = self.client.get("/")
+
+        self.assertContains(response, "(stale)")
+
+    def test_listReturnsMessageAndNoBadgeWhenPriceUnavailable(self):
+        with patch("watchlist.views.fetch_daily_candles") as fetch:
+            fetch.return_value = PriceUnavailable(
+                symbol="AAPL", reason="rate_limited"
+            )
+
+            response = self.client.get("/")
+
+        self.assertContains(response, "rate limited")
+        self.assertNotContains(response, 'class="badge')
+
+    def test_listReturnsNoBadgeWhenNoFormationDetected(self):
+        with patch("watchlist.views.fetch_daily_candles") as fetch, patch(
+            "watchlist.views.score_formation"
+        ) as score:
+            fetch.return_value = PriceSeries(
+                symbol="AAPL", candles=(), status="ok"
+            )
+            score.return_value = FormationScore(
+                pattern="none",
+                stage="none",
+                grade="none",
+                score=0.0,
+                evidence=None,
+            )
+
+            response = self.client.get("/")
+
+        self.assertNotContains(response, 'class="badge')

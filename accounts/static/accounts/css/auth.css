@@ -76,3 +76,33 @@ body {
   margin-top: 1rem;
   color: var(--auth-muted);
 }
+
+.badge {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.badge.grade-low {
+  background: #e6f4ea;
+  color: #137333;
+}
+
+.badge.grade-medium {
+  background: #fef7e0;
+  color: #b06000;
+}
+
+.badge.grade-high {
+  background: #fce8e6;
+  color: #b3261e;
+}
+
+.row-message {
+  color: var(--auth-muted);
+  font-size: 0.875rem;
+}

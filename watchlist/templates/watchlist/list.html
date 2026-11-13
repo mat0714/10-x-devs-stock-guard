@@ -13,12 +13,17 @@
     <button type="submit">Add</button>
   </form>
 
-  {% if items %}
+  {% if rows %}
     <ul>
-      {% for item in items %}
+      {% for row in rows %}
         <li>
-          {{ item.symbol }}{% if item.name %} ({{ item.name }}){% endif %}
-          <form method="post" action="{% url 'watchlist_remove' item.pk %}">
+          {{ row.item.symbol }}{% if row.item.name %} ({{ row.item.name }}){% endif %}
+          {% if row.score and row.score.pattern != "none" %}
+            <span class="badge grade-{{ row.score.grade }}">{% if row.score.pattern == "double_top" %}Double top{% elif row.score.pattern == "head_shoulders" %}RGR{% endif %} · {{ row.score.stage }} · {{ row.score.grade }}</span>
+          {% endif %}
+          {% if row.stale %}(stale){% endif %}
+          {% if row.message %}<span class="row-message">{{ row.message }}</span>{% endif %}
+          <form method="post" action="{% url 'watchlist_remove' row.item.pk %}">
             {% csrf_token %}
             <button type="submit">Remove</button>
           </form>

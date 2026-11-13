@@ -384,25 +384,25 @@ Add the `score_symbol` command for tuning and debugging, wire the Django test ru
 
 #### Automated
 
-- [x] 2.1 Detection tests pass
-- [x] 2.2 Django system checks pass
+- [x] 2.1 Detection tests pass — 1a7a93d
+- [x] 2.2 Django system checks pass — 1a7a93d
 
 #### Manual
 
-- [x] 2.3 `score_formation` returns forming and confirmed grades on hand-built series
+- [x] 2.3 `score_formation` returns forming and confirmed grades on hand-built series — 1a7a93d
 
 ### Phase 3: Watchlist list-page rendering
 
 #### Automated
 
-- [ ] 3.1 Watchlist test suite passes
-- [ ] 3.2 Existing auth suite still passes
-- [ ] 3.3 Django system checks pass
-- [ ] 3.4 No migration drift remains
+- [x] 3.1 Watchlist test suite passes
+- [x] 3.2 Existing auth suite still passes
+- [x] 3.3 Django system checks pass
+- [x] 3.4 No migration drift remains
 
 #### Manual
 
-- [ ] 3.5 The list page shows a graded badge on a formation, none on a quiet symbol, and a message when the key is removed
+- [x] 3.5 The list page shows a graded badge on a formation, none on a quiet symbol, and a message when the key is removed
 
 ### Phase 4: Inspect command, CI test step & verification
 
