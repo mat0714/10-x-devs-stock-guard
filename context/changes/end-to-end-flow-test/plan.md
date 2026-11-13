@@ -98,7 +98,7 @@ Add an `EndToEndFlowTests` class to `watchlist/tests.py` that walks register →
 
 #### Automated Verification:
 
-- The new class passes in isolation: `uv run python manage.py test watchlist.EndToEndFlowTests`
+- The new class passes in isolation: `uv run python manage.py test watchlist.tests.EndToEndFlowTests`
 - The full watchlist suite passes: `uv run python manage.py test watchlist`
 - Django system checks pass: `uv run python manage.py check`
 
@@ -187,7 +187,7 @@ Confirm the new test is green within the whole suite and that nothing regressed,
 
 #### Automated
 
-- [x] 1.1 The new class passes in isolation: `uv run python manage.py test watchlist.EndToEndFlowTests` — b105303
+- [x] 1.1 The new class passes in isolation: `uv run python manage.py test watchlist.tests.EndToEndFlowTests` — b105303
 - [x] 1.2 The full watchlist suite passes: `uv run python manage.py test watchlist` — b105303
 - [x] 1.3 Django system checks pass: `uv run python manage.py check` — b105303
 

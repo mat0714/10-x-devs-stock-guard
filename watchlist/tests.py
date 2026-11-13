@@ -431,6 +431,9 @@ def _planted_double_top(
 
 
 class EndToEndFlowTests(TransactionTestCase):
+    # TransactionTestCase (not TestCase): scan_watchlist writes DailyCandle from a
+    # worker thread on its own SQLite connection, which cannot write while TestCase's
+    # wrapping transaction is held (row degrades to "database table is locked").
     def setUp(self):
         self.email = "marek@example.com"
         User.objects.create_user(
@@ -450,9 +453,7 @@ class EndToEndFlowTests(TransactionTestCase):
         with patch(
             "marketdata.services.twelvedata.fetch_daily"
         ) as fetch:
-            fetch.return_value = list(
-                _planted_double_top(FORMING_DOUBLE_TOP_LEGS)
-            )
+            fetch.return_value = _planted_double_top(FORMING_DOUBLE_TOP_LEGS)
 
             response = self.client.get("/")
 
