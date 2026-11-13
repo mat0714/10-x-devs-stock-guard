@@ -1,9 +1,9 @@
 ---
 change_id: formation-detection-service
 title: Formation detection service
-status: preparing
+status: implementing
 created: 2026-11-08
-updated: 2026-11-08
+updated: 2026-11-13
 archived_at: null
 ---
 

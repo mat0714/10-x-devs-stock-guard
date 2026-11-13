@@ -3,7 +3,7 @@ project: Stock Guard
 version: 1
 status: draft
 created: 2026-10-08
-updated: 2026-11-01
+updated: 2026-11-13
 prd_version: 1
 main_goal: market-feedback
 top_blocker: external
@@ -44,7 +44,7 @@ An individual investor managing several to a dozen-plus positions spends time ev
 | F-01 | account-auth-scaffold      | (foundation) per-account sign-up/login screens live, backed by Django auth  | —                | FR-001, FR-002, Access Control | in-progress |
 | F-02 | price-data-fetch-boundary  | (foundation) one module fetches a daily-candle series per symbol from a chosen free API, with partial-failure surfacing | —                | FR-008, NFR-04         | in-progress |
 | S-01 | own-watchlist-crud        / | user can add, view, and remove stocks on their own private list              | F-01             | FR-003, FR-004, FR-006, US-01 | in-progress |
-| S-02 | formation-detection-service| user sees a graded bearish-formation score rendered per scanned position     | F-01, S-01, F-02 | FR-009, FR-010, US-01  | blocked  |
+| S-02 | formation-detection-service| user sees a graded bearish-formation score rendered per scanned position     | F-01, S-01, F-02 | FR-009, FR-010, US-01  | in-progress |
 | S-03 | scan-on-login-flagged-list | user sees their whole list auto-scanned with graded flags after logging in   | S-01, S-02       | FR-007, FR-004, US-01, NFR-01, NFR-02 | blocked  |
 | S-04 | end-to-end-flow-test       | (verification) the login → add → scan → flagged-list flow is proven by one test | S-03            | shape-notes Forward: technical-roadmap | proposed |
 
@@ -124,7 +124,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Unknowns:**
   - What exact confidence cut-off separates "forming" from "high-probability forming" (PRD pins the principle, defers the number)? — Owner: user. Block: no.
 - **Risk:** This is the core hypothesis made concrete (the detection math). Split from S-03 deliberately so the detection engine and the auto-scan orchestration are planned as separate changes; the threshold unknown is `Block: no` because a defensible default can be tuned after first signal.
-- **Status:** blocked
+- **Status:** in-progress
 
 ### S-03: user sees their whole list auto-scanned with graded flags after logging in
 
