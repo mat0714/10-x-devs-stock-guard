@@ -278,8 +278,8 @@ Prove the orchestration's deadline and per-row isolation offline, retarget the o
 
 #### Automated
 
-- [x] 1.1 Detection tests pass
-- [x] 1.2 Django system checks pass
+- [x] 1.1 Detection tests pass — e192faa
+- [x] 1.2 Django system checks pass — e192faa
 
 #### Manual
 
@@ -289,10 +289,10 @@ Prove the orchestration's deadline and per-row isolation offline, retarget the o
 
 #### Automated
 
-- [ ] 2.1 Watchlist tests pass (patch targets retargeted)
-- [ ] 2.2 Existing auth suite still passes
-- [ ] 2.3 Django system checks pass
-- [ ] 2.4 No migration drift remains
+- [x] 2.1 Watchlist tests pass (patch targets retargeted)
+- [x] 2.2 Existing auth suite still passes
+- [x] 2.3 Django system checks pass
+- [x] 2.4 No migration drift remains
 
 #### Manual
 

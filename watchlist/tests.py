@@ -19,7 +19,7 @@ class AddWatchlistItemTests(TestCase):
             password=PASSWORD,
         )
         self.client.login(username="marek@example.com", password=PASSWORD)
-        self.fetch_patcher = patch("watchlist.views.fetch_daily_candles")
+        self.fetch_patcher = patch("watchlist.services.fetch_daily_candles")
         self.fetch = self.fetch_patcher.start()
         self.addCleanup(self.fetch_patcher.stop)
         self.fetch.return_value = PriceUnavailable(
@@ -77,7 +77,7 @@ class WatchlistListTests(TestCase):
             email="bob@example.com",
             password=PASSWORD,
         )
-        self.fetch_patcher = patch("watchlist.views.fetch_daily_candles")
+        self.fetch_patcher = patch("watchlist.services.fetch_daily_candles")
         self.fetch = self.fetch_patcher.start()
         self.addCleanup(self.fetch_patcher.stop)
         self.fetch.return_value = PriceUnavailable(
@@ -123,7 +123,7 @@ class RemoveWatchlistItemTests(TestCase):
             email="bob@example.com",
             password=PASSWORD,
         )
-        self.fetch_patcher = patch("watchlist.views.fetch_daily_candles")
+        self.fetch_patcher = patch("watchlist.services.fetch_daily_candles")
         self.fetch = self.fetch_patcher.start()
         self.addCleanup(self.fetch_patcher.stop)
         self.fetch.return_value = PriceUnavailable(
@@ -168,8 +168,8 @@ class RowRenderingTests(TestCase):
         self.client.login(username="alice@example.com", password=PASSWORD)
 
     def test_listReturnsGradeBadgeWhenScoreGradeIsHigh(self):
-        with patch("watchlist.views.fetch_daily_candles") as fetch, patch(
-            "watchlist.views.score_formation"
+        with patch("watchlist.services.fetch_daily_candles") as fetch, patch(
+            "watchlist.services.score_formation"
         ) as score:
             fetch.return_value = PriceSeries(
                 symbol="AAPL", candles=(), status="ok"
@@ -188,8 +188,8 @@ class RowRenderingTests(TestCase):
         self.assertContains(response, "grade-high")
 
     def test_listReturnsConfirmedLabelWhenScoreStageIsConfirmed(self):
-        with patch("watchlist.views.fetch_daily_candles") as fetch, patch(
-            "watchlist.views.score_formation"
+        with patch("watchlist.services.fetch_daily_candles") as fetch, patch(
+            "watchlist.services.score_formation"
         ) as score:
             fetch.return_value = PriceSeries(
                 symbol="AAPL", candles=(), status="ok"
@@ -207,8 +207,8 @@ class RowRenderingTests(TestCase):
         self.assertContains(response, "confirmed")
 
     def test_listReturnsStaleMarkerWhenSeriesIsStale(self):
-        with patch("watchlist.views.fetch_daily_candles") as fetch, patch(
-            "watchlist.views.score_formation"
+        with patch("watchlist.services.fetch_daily_candles") as fetch, patch(
+            "watchlist.services.score_formation"
         ) as score:
             fetch.return_value = PriceSeries(
                 symbol="AAPL", candles=(), status="stale"
@@ -226,7 +226,7 @@ class RowRenderingTests(TestCase):
         self.assertContains(response, "(stale)")
 
     def test_listReturnsMessageAndNoBadgeWhenPriceUnavailable(self):
-        with patch("watchlist.views.fetch_daily_candles") as fetch:
+        with patch("watchlist.services.fetch_daily_candles") as fetch:
             fetch.return_value = PriceUnavailable(
                 symbol="AAPL", reason="rate_limited"
             )
@@ -237,8 +237,8 @@ class RowRenderingTests(TestCase):
         self.assertNotContains(response, 'class="badge')
 
     def test_listReturnsNoBadgeWhenNoFormationDetected(self):
-        with patch("watchlist.views.fetch_daily_candles") as fetch, patch(
-            "watchlist.views.score_formation"
+        with patch("watchlist.services.fetch_daily_candles") as fetch, patch(
+            "watchlist.services.score_formation"
         ) as score:
             fetch.return_value = PriceSeries(
                 symbol="AAPL", candles=(), status="ok"

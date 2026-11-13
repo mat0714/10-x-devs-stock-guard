@@ -194,3 +194,10 @@ else:
 TWELVE_DATA_API_KEY = os.environ.get('TWELVE_DATA_API_KEY', '')
 MARKET_DATA_LOOKBACK_BARS = int(os.environ.get('MARKET_DATA_LOOKBACK_BARS', '500'))
 MARKET_DATA_HTTP_TIMEOUT = float(os.environ.get('MARKET_DATA_HTTP_TIMEOUT', '10'))
+
+
+# Watchlist scan
+# Bounded-parallel list scan: pool size, per-symbol HTTP cap and total budget.
+WATCHLIST_SCAN_MAX_WORKERS = int(os.environ.get('WATCHLIST_SCAN_MAX_WORKERS', '8'))
+WATCHLIST_SCAN_PER_SYMBOL_TIMEOUT = float(os.environ.get('WATCHLIST_SCAN_PER_SYMBOL_TIMEOUT', '3'))
+WATCHLIST_SCAN_BUDGET_SECONDS = float(os.environ.get('WATCHLIST_SCAN_BUDGET_SECONDS', '5'))

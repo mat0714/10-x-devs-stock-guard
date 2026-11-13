@@ -37,12 +37,20 @@ class PriceUnavailable:
 FetchResult = PriceSeries | PriceUnavailable
 
 
-def fetch_daily_candles(symbol: str, *, bars: int | None = None) -> FetchResult:
+def fetch_daily_candles(
+    symbol: str,
+    *,
+    bars: int | None = None,
+    timeout: float | None = None,
+) -> FetchResult:
     """Return the daily-candle window for one symbol, never raising.
 
     Freshness and persistence assume a single worker: the read of the newest
     ``fetched_at``, the provider call and the upsert are not locked, so two
     concurrent callers for the same symbol may both hit the provider.
+
+    ``timeout`` optionally caps a single provider call below the settings
+    default; ``None`` keeps the :data:`settings.MARKET_DATA_HTTP_TIMEOUT`.
     """
     normalized = symbol.strip().upper()
     if not normalized:
@@ -73,7 +81,11 @@ def fetch_daily_candles(symbol: str, *, bars: int | None = None) -> FetchResult:
         candles = twelvedata.fetch_daily(
             normalized,
             bars=lookback,
-            timeout=settings.MARKET_DATA_HTTP_TIMEOUT,
+            timeout=(
+                timeout
+                if timeout is not None
+                else settings.MARKET_DATA_HTTP_TIMEOUT
+            ),
             api_key=api_key,
         )
     except ProviderError as exc:
