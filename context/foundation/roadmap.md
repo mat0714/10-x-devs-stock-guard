@@ -42,7 +42,7 @@ An individual investor managing several to a dozen-plus positions spends time ev
 | ID   | Change ID                  | Outcome (user can …)                                                         | Prerequisites    | PRD refs               | Status   |
 | ---- | -------------------------- | ---------------------------------------------------------------------------- | ---------------- | ---------------------- | -------- |
 | F-01 | account-auth-scaffold      | (foundation) per-account sign-up/login screens live, backed by Django auth  | —                | FR-001, FR-002, Access Control | done |
-| F-02 | price-data-fetch-boundary  | (foundation) one module fetches a daily-candle series per symbol from a chosen free API, with partial-failure surfacing | —                | FR-008, NFR-04         | in-progress |
+| F-02 | price-data-fetch-boundary  | (foundation) one module fetches a daily-candle series per symbol from a chosen free API, with partial-failure surfacing | —                | FR-008, NFR-04         | done |
 | S-01 | own-watchlist-crud        / | user can add, view, and remove stocks on their own private list              | F-01             | FR-003, FR-004, FR-006, US-01 | in-progress |
 | S-02 | formation-detection-service| user sees a graded bearish-formation score rendered per scanned position     | F-01, S-01, F-02 | FR-009, FR-010, US-01  | done |
 | S-03 | scan-on-login-flagged-list | user sees their whole list auto-scanned with graded flags after logging in   | S-01, S-02       | FR-007, FR-004, US-01, NFR-01, NFR-02 | blocked  |
@@ -97,7 +97,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
   - Which free price API provides daily candles for the target tickers, and does its free tier cover the expected per-user call volume? — Owner: user. Block: yes.
   - What ticker symbol format does the chosen API expect (FR-003 accepts free-text ticker + name)? — Owner: user. Block: yes.
 - **Risk:** The provider is selected (Twelve Data, research.md 2026-10-18) and the per-symbol `DailyCandle` cache with prune is part of F-02, because research.md:167 shows caching is a functional requirement under the 8 credits/min limit rather than an optimisation for a later slice. The remaining risk is provider fit (free-tier licence and rate limits), tracked in the plan as a launch-time risk.
-- **Status:** in-progress
+- **Status:** done
 
 ## Slices
 
@@ -184,3 +184,4 @@ Foundations below assume these are present and do NOT re-scaffold them.
 
 - **S-02: user sees each watchlist position rendered with a graded bearish-formation score (low / medium / high), computed by a detection service from that position's daily-candle series, rather than a binary flag.** — Archived 2026-11-13 → `context/archive/2026-11-08-formation-detection-service/`. Lesson: —.
 - **F-01: (foundation) per-account sign-up and login screens are live, backed by Django's auth, so an unauthenticated visitor lands on a login screen and every subsequent view can resolve the current user.** — Archived 2026-11-13 → `context/archive/2026-10-11-account-auth-scaffold/`. Lesson: —.
+- **F-02: (foundation) a single service module returns a normalized daily-candle price series for a given ticker from the chosen free API, and reports a per-symbol unavailability error instead of raising — the seam the detection service and the UI both consume.** — Archived 2026-11-13 → `context/archive/2026-10-18-price-data-fetch-boundary/`. Lesson: —.

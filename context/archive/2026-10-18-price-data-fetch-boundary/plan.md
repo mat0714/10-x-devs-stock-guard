@@ -340,50 +340,50 @@ Add the management command that makes the boundary testable by hand and gives S-
 
 #### Automated
 
-- [x] 1.1 Lockfile is current (`uv lock --check`) — dfeca81
-- [x] 1.2 Django system checks pass — dfeca81
-- [x] 1.3 No migration drift remains — dfeca81
-- [x] 1.4 Migration applies locally — dfeca81
-- [x] 1.5 Static collection still succeeds — dfeca81
+- [x] 1.1 Lockfile is current (`uv lock --check`) — 7b54a76
+- [x] 1.2 Django system checks pass — 7b54a76
+- [x] 1.3 No migration drift remains — 7b54a76
+- [x] 1.4 Migration applies locally — 7b54a76
+- [x] 1.5 Static collection still succeeds — 7b54a76
 
 #### Manual
 
-- [x] 1.6 `marketdata_dailycandle` exists with the unique `(symbol, date)` constraint — dfeca81
+- [x] 1.6 `marketdata_dailycandle` exists with the unique `(symbol, date)` constraint — 7b54a76
 
 ### Phase 2: Twelve Data adapter
 
 #### Automated
 
-- [x] 2.1 Adapter tests pass — a604cb7
-- [x] 2.2 Django system checks pass — a604cb7
+- [x] 2.1 Adapter tests pass — 800cab5
+- [x] 2.2 Django system checks pass — 800cab5
 
 #### Manual
 
-- [x] 2.3 A real AAPL request returns ~500 ascending bars matching the provider's last completed close — a604cb7
+- [x] 2.3 A real AAPL request returns ~500 ascending bars matching the provider's last completed close — 800cab5
 
 ### Phase 3: Fetch service with DB cache
 
 #### Automated
 
-- [x] 3.1 Service tests pass — 406b57b
-- [x] 3.2 Full app suite passes — 406b57b
-- [x] 3.3 Migration drift check is clean — 406b57b
-- [x] 3.4 Django system checks pass — 406b57b
+- [x] 3.1 Service tests pass — b06b917
+- [x] 3.2 Full app suite passes — b06b917
+- [x] 3.3 Migration drift check is clean — b06b917
+- [x] 3.4 Django system checks pass — b06b917
 
 #### Manual
 
-- [x] 3.5 Second fetch before the next NY close returns `cached` with no outbound request — 406b57b
+- [x] 3.5 Second fetch before the next NY close returns `cached` with no outbound request — b06b917
 
 ### Phase 4: Smoke command & verification
 
 #### Automated
 
-- [x] 4.1 Full suite passes — ee7f6ca
-- [x] 4.2 Django system checks pass — ee7f6ca
+- [x] 4.1 Full suite passes — 67892f1
+- [x] 4.2 Django system checks pass — 67892f1
 
 #### Manual
 
-- [x] 4.3 `fetch_candles AAPL` prints ~500 bars with status `ok` — ee7f6ca
-- [x] 4.4 A second run before the next session close prints `cached` with the same date range — ee7f6ca
-- [x] 4.5 An invalid ticker prints `symbol_not_found` and exits 0 — ee7f6ca
-- [x] 4.6 An unset key prints `not_configured` for an unfetched symbol and `stale` for a fetched one — ee7f6ca
+- [x] 4.3 `fetch_candles AAPL` prints ~500 bars with status `ok` — 67892f1
+- [x] 4.4 A second run before the next session close prints `cached` with the same date range — 67892f1
+- [x] 4.5 An invalid ticker prints `symbol_not_found` and exits 0 — 67892f1
+- [x] 4.6 An unset key prints `not_configured` for an unfetched symbol and `stale` for a fetched one — 67892f1
