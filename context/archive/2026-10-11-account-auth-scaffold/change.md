@@ -1,10 +1,10 @@
 ---
 change_id: account-auth-scaffold
 title: Account auth scaffold
-status: impl_reviewed
+status: archived
 created: 2026-10-11
-updated: 2026-10-18
-archived_at: null
+updated: 2026-11-13
+archived_at: 2026-11-13T10:38:26Z
 ---
 
 ## Notes
