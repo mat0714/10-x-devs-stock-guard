@@ -1,7 +1,7 @@
 ---
 change_id: scan-on-login-flagged-list
 title: Scan on login for watchlist entries flagged by formations
-status: implementing
+status: implemented
 created: 2026-11-13
 updated: 2026-11-13
 archived_at: null

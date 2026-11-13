@@ -302,9 +302,9 @@ Prove the orchestration's deadline and per-row isolation offline, retarget the o
 
 #### Automated
 
-- [x] 3.1 Full test suite passes
-- [x] 3.2 Django system checks pass
-- [x] 3.3 Static collection still succeeds
+- [x] 3.1 Full test suite passes — 6e30660
+- [x] 3.2 Django system checks pass — 6e30660
+- [x] 3.3 Static collection still succeeds — 6e30660
 
 #### Manual
 
