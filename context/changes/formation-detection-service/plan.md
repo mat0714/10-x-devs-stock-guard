@@ -408,11 +408,11 @@ Add the `score_symbol` command for tuning and debugging, wire the Django test ru
 
 #### Automated
 
-- [x] 4.1 Full test suite passes
-- [x] 4.2 Django system checks pass
-- [x] 4.3 Static collection still succeeds
+- [x] 4.1 Full test suite passes — 8ce9592
+- [x] 4.2 Django system checks pass — 8ce9592
+- [x] 4.3 Static collection still succeeds — 8ce9592
 
 #### Manual
 
-- [x] 4.4 `score_symbol AAPL` prints pattern/stage/grade with evidence and exits 0
-- [x] 4.5 The new CI test step runs and passes on push/PR
+- [x] 4.4 `score_symbol AAPL` prints pattern/stage/grade with evidence and exits 0 — 8ce9592
+- [x] 4.5 The new CI test step runs and passes on push/PR — 8ce9592
