@@ -283,30 +283,30 @@ Prove the orchestration's deadline and per-row isolation offline, retarget the o
 
 #### Manual
 
-- [ ] 1.3 Seeded noisy 500-bar series shows lower H&S time/symbol than the ~2.9 s baseline
+- [x] 1.3 Seeded noisy 500-bar series shows lower H&S time/symbol than the ~2.9 s baseline
 
 ### Phase 2: Bounded-parallel scan orchestration + view wiring
 
 #### Automated
 
-- [x] 2.1 Watchlist tests pass (patch targets retargeted)
-- [x] 2.2 Existing auth suite still passes
-- [x] 2.3 Django system checks pass
-- [x] 2.4 No migration drift remains
+- [x] 2.1 Watchlist tests pass (patch targets retargeted) — 25f07fc
+- [x] 2.2 Existing auth suite still passes — 25f07fc
+- [x] 2.3 Django system checks pass — 25f07fc
+- [x] 2.4 No migration drift remains — 25f07fc
 
 #### Manual
 
-- [ ] 2.5 List page renders badges, stale markers and messages; cold list renders within budget
+- [x] 2.5 List page renders badges, stale markers and messages; cold list renders within budget
 
 ### Phase 3: Offline tests, benchmark & verification
 
 #### Automated
 
-- [ ] 3.1 Full test suite passes
-- [ ] 3.2 Django system checks pass
-- [ ] 3.3 Static collection still succeeds
+- [x] 3.1 Full test suite passes
+- [x] 3.2 Django system checks pass
+- [x] 3.3 Static collection still succeeds
 
 #### Manual
 
-- [ ] 3.4 Cold ~12-symbol list returns within ~5 s with per-row messages for unresolved rows
-- [ ] 3.5 Repeated opens of a warm list resolve promptly with no outbound fetch
+- [x] 3.4 Cold ~12-symbol list returns within ~5 s with per-row messages for unresolved rows
+- [x] 3.5 Repeated opens of a warm list resolve promptly with no outbound fetch

@@ -1,3 +1,4 @@
+import time
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
@@ -7,6 +8,7 @@ from detection.services import FormationScore
 from marketdata.services import PriceSeries, PriceUnavailable
 
 from .models import WatchlistItem
+from .services import Row, scan_watchlist
 
 PASSWORD = "S3cure-Passw0rd!x"
 
@@ -254,3 +256,112 @@ class RowRenderingTests(TestCase):
             response = self.client.get("/")
 
         self.assertNotContains(response, 'class="badge')
+
+
+class ScanWatchlistTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="alice@example.com",
+            email="alice@example.com",
+            password=PASSWORD,
+        )
+
+    def _items(self, *symbols):
+        return [
+            WatchlistItem.objects.create(user=self.user, symbol=symbol)
+            for symbol in symbols
+        ]
+
+    def test_scanReturnsStillScanningRowWhenFetchOutlastsBudget(self):
+        items = self._items("AAPL")
+
+        def slow_fetch(symbol, *, timeout=None):
+            time.sleep(0.2)
+            return PriceUnavailable(symbol=symbol, reason="not_configured")
+
+        with patch(
+            "watchlist.services.fetch_daily_candles", side_effect=slow_fetch
+        ):
+            rows = scan_watchlist(items, max_workers=1, budget_seconds=0.05)
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].item.pk, items[0].pk)
+        self.assertEqual(rows[0].message, "still scanning")
+        self.assertIsNone(rows[0].score)
+
+    def test_scanReturnsRowForEveryItemInInputOrderWhenOneTaskRaises(self):
+        items = self._items("AAPL", "MSFT", "GOOG")
+
+        def flaky_fetch(symbol, *, timeout=None):
+            if symbol == "MSFT":
+                raise RuntimeError("boom")
+            return PriceUnavailable(symbol=symbol, reason="not_configured")
+
+        with patch(
+            "watchlist.services.fetch_daily_candles", side_effect=flaky_fetch
+        ):
+            rows = scan_watchlist(items, max_workers=2, budget_seconds=5)
+
+        self.assertEqual(len(rows), 3)
+        self.assertTrue(all(isinstance(row, Row) for row in rows))
+        self.assertEqual(
+            [row.item.pk for row in rows], [item.pk for item in items]
+        )
+        self.assertEqual(rows[1].message, "analysis failed")
+
+    def test_scanReturnsRateLimitedMessageWhenFetchReportsRateLimited(self):
+        items = self._items("AAPL")
+
+        with patch("watchlist.services.fetch_daily_candles") as fetch:
+            fetch.return_value = PriceUnavailable(
+                symbol="AAPL", reason="rate_limited"
+            )
+
+            rows = scan_watchlist(items, max_workers=1, budget_seconds=5)
+
+        self.assertEqual(rows[0].message, "rate limited")
+        self.assertIsNone(rows[0].score)
+        self.assertFalse(rows[0].stale)
+
+    def test_scanReturnsStaleRowWhenSeriesStatusIsStale(self):
+        items = self._items("AAPL")
+
+        with patch("watchlist.services.fetch_daily_candles") as fetch, patch(
+            "watchlist.services.score_formation"
+        ) as score:
+            fetch.return_value = PriceSeries(
+                symbol="AAPL", candles=(), status="stale"
+            )
+            score.return_value = FormationScore(
+                pattern="double_top",
+                stage="forming",
+                grade="medium",
+                score=0.5,
+                evidence=None,
+            )
+
+            rows = scan_watchlist(items, max_workers=1, budget_seconds=5)
+
+        self.assertTrue(rows[0].stale)
+        self.assertEqual(rows[0].score, score.return_value)
+
+    def test_scanReturnsRowsInInputOrderWhenFetchesCompleteOutOfOrder(self):
+        items = self._items("TSLA", "AAPL", "GOOG", "MSFT")
+        delays = {"TSLA": 0.06, "AAPL": 0.0, "GOOG": 0.03, "MSFT": 0.01}
+
+        def delayed_fetch(symbol, *, timeout=None):
+            time.sleep(delays[symbol])
+            return PriceUnavailable(symbol=symbol, reason="not_configured")
+
+        with patch(
+            "watchlist.services.fetch_daily_candles", side_effect=delayed_fetch
+        ):
+            rows = scan_watchlist(items, max_workers=4, budget_seconds=5)
+
+        self.assertEqual(
+            [row.item.symbol for row in rows],
+            ["TSLA", "AAPL", "GOOG", "MSFT"],
+        )
+        self.assertEqual(
+            [row.item.pk for row in rows], [item.pk for item in items]
+        )
