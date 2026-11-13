@@ -45,7 +45,7 @@ An individual investor managing several to a dozen-plus positions spends time ev
 | F-02 | price-data-fetch-boundary  | (foundation) one module fetches a daily-candle series per symbol from a chosen free API, with partial-failure surfacing | —                | FR-008, NFR-04         | done |
 | S-01 | own-watchlist-crud        / | user can add, view, and remove stocks on their own private list              | F-01             | FR-003, FR-004, FR-006, US-01 | done |
 | S-02 | formation-detection-service| user sees a graded bearish-formation score rendered per scanned position     | F-01, S-01, F-02 | FR-009, FR-010, US-01  | done |
-| S-03 | scan-on-login-flagged-list | user sees their whole list auto-scanned with graded flags after logging in   | S-01, S-02       | FR-007, FR-004, US-01, NFR-01, NFR-02 | in-progress |
+| S-03 | scan-on-login-flagged-list | user sees their whole list auto-scanned with graded flags after logging in   | S-01, S-02       | FR-007, FR-004, US-01, NFR-01, NFR-02 | done |
 | S-04 | end-to-end-flow-test       | (verification) the login → add → scan → flagged-list flow is proven by one test | S-03            | shape-notes Forward: technical-roadmap | proposed |
 
 ## Streams
@@ -137,7 +137,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Unknowns:**
   - How is the scan orchestrated so a dozen sequential API calls stay within the "few seconds" responsiveness budget (parallel fetch, short timeout, or progressive render)? — Owner: user. Block: no.
 - **Risk:** North star. Sequence last among the user-facing slices because it composes the list (S-01) and the detection service (S-02) into the automatic scan-on-login trigger (FR-007, switched from manual during shaping). Risk is latency: naive per-row fetching could blow the NFR — flagged as a non-blocking unknown to solve during planning.
-- **Status:** in-progress
+- **Status:** done
 
 ### S-04: the login → add → scan → flagged-list flow is proven by one test
 
@@ -186,3 +186,4 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **F-01: (foundation) per-account sign-up and login screens are live, backed by Django's auth, so an unauthenticated visitor lands on a login screen and every subsequent view can resolve the current user.** — Archived 2026-11-13 → `context/archive/2026-10-11-account-auth-scaffold/`. Lesson: —.
 - **F-02: (foundation) a single service module returns a normalized daily-candle price series for a given ticker from the chosen free API, and reports a per-symbol unavailability error instead of raising — the seam the detection service and the UI both consume.** — Archived 2026-11-13 → `context/archive/2026-10-18-price-data-fetch-boundary/`. Lesson: —.
 - **S-01: user can add a stock (ticker + name) to their own list, view the list, and remove a stock from it — and sees only their own list.** — Archived 2026-11-13 → `context/archive/2026-11-01-own-watchlist-crud/`. Lesson: —.
+- **S-03: user can log in and, without doing anything else, see their entire watchlist auto-scanned with graded flags on positions showing a forming bearish formation, and a clear per-row message where price data is unavailable — the rest of the list still shows.** — Archived 2026-11-13 → `context/archive/2026-11-13-scan-on-login-flagged-list/`. Lesson: —.
