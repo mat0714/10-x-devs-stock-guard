@@ -50,7 +50,8 @@ def fetch_daily_candles(
     concurrent callers for the same symbol may both hit the provider.
 
     ``timeout`` optionally caps a single provider call below the settings
-    default; ``None`` keeps the :data:`settings.MARKET_DATA_HTTP_TIMEOUT`.
+    default; ``None`` (or a non-positive value) keeps the
+    :data:`settings.MARKET_DATA_HTTP_TIMEOUT`.
     """
     normalized = symbol.strip().upper()
     if not normalized:
@@ -83,7 +84,7 @@ def fetch_daily_candles(
             bars=lookback,
             timeout=(
                 timeout
-                if timeout is not None
+                if timeout is not None and timeout > 0
                 else settings.MARKET_DATA_HTTP_TIMEOUT
             ),
             api_key=api_key,

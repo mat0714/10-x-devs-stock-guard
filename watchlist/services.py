@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
 from django.conf import settings
-from django.db import close_old_connections
+from django.db import connection
 
 from detection.services import FormationScore, score_formation
 from marketdata.services import PriceSeries, fetch_daily_candles
@@ -13,6 +13,10 @@ from marketdata.services import PriceSeries, fetch_daily_candles
 from .models import WatchlistItem
 
 _logger = logging.getLogger(__name__)
+
+# Hard ceiling on the scan pool so an over-eager env override cannot fan out an
+# unbounded number of threads (and their DB connections) from a single request.
+MAX_SCAN_WORKERS = 32
 
 
 @dataclass(frozen=True)
@@ -45,26 +49,30 @@ def scan_watchlist(
     if budget_seconds is None:
         budget_seconds = settings.WATCHLIST_SCAN_BUDGET_SECONDS
 
-    pool = ThreadPoolExecutor(max_workers=max_workers)
-    futures = {
-        item.pk: pool.submit(_build_row, item, per_row_timeout) for item in items
-    }
+    pool = ThreadPoolExecutor(
+        max_workers=min(max(1, max_workers), MAX_SCAN_WORKERS)
+    )
+    futures = [
+        pool.submit(_build_row, item, per_row_timeout) for item in items
+    ]
     deadline = time.monotonic() + budget_seconds
     rows = []
-    for item in items:
-        remaining = deadline - time.monotonic()
-        try:
-            rows.append(futures[item.pk].result(timeout=max(0.0, remaining)))
-        except TimeoutError:
-            rows.append(
-                Row(
-                    item=item,
-                    score=None,
-                    stale=False,
-                    message='still scanning',
+    try:
+        for item, future in zip(items, futures):
+            remaining = deadline - time.monotonic()
+            try:
+                rows.append(future.result(timeout=max(0.0, remaining)))
+            except TimeoutError:
+                rows.append(
+                    Row(
+                        item=item,
+                        score=None,
+                        stale=False,
+                        message='still scanning',
+                    )
                 )
-            )
-    pool.shutdown(wait=False)
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
     return rows
 
 
@@ -92,4 +100,4 @@ def _build_row(item: WatchlistItem, per_row_timeout: float | None) -> Row:
             item=item, score=None, stale=False, message='analysis failed'
         )
     finally:
-        close_old_connections()
+        connection.close()

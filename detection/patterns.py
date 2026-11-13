@@ -16,10 +16,11 @@ RETRACE_ATR_SCALE = 3.0
 NECKLINE_SLOPE_TOLERANCE = 0.01
 
 # Only the trailing ``MAX_PIVOT_LOOKBACK`` pivots are eligible as the opening
-# pivot of a candidate. A currently-forming pattern is anchored to the live leg,
-# so this bound keeps every forming pattern while capping the nested enumeration
-# on noisy series, which can otherwise score hundreds of thousands of
-# geometrically-valid but irrelevant combinations.
+# pivot of a candidate. This is a deliberate recall-vs-cost bound: it caps the
+# nested enumeration on noisy series, which can otherwise score hundreds of
+# thousands of geometrically-valid but irrelevant combinations, at the price of
+# not scoring a forming pattern whose opening peak lies further back than this
+# many pivots. Raise it if a missed recent pattern is ever reported.
 MAX_PIVOT_LOOKBACK = 20
 
 

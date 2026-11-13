@@ -1,6 +1,7 @@
 import time
 from unittest.mock import patch
 
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.test import TestCase
 
@@ -8,7 +9,7 @@ from detection.services import FormationScore
 from marketdata.services import PriceSeries, PriceUnavailable
 
 from .models import WatchlistItem
-from .services import Row, scan_watchlist
+from .services import MAX_SCAN_WORKERS, Row, scan_watchlist
 
 PASSWORD = "S3cure-Passw0rd!x"
 
@@ -365,3 +366,23 @@ class ScanWatchlistTests(TestCase):
         self.assertEqual(
             [row.item.pk for row in rows], [item.pk for item in items]
         )
+
+    def test_scanReturnsAllRowsWhenMaxWorkersIsUnsetOrOversized(self):
+        self.assertGreaterEqual(settings.WATCHLIST_SCAN_MAX_WORKERS, 1)
+        self.assertLessEqual(
+            settings.WATCHLIST_SCAN_MAX_WORKERS, MAX_SCAN_WORKERS
+        )
+        items = self._items("AAPL", "MSFT")
+
+        with patch("watchlist.services.fetch_daily_candles") as fetch:
+            fetch.return_value = PriceUnavailable(
+                symbol="AAPL", reason="not_configured"
+            )
+
+            default_rows = scan_watchlist(items)
+            oversized_rows = scan_watchlist(
+                items, max_workers=1000, budget_seconds=5
+            )
+
+        self.assertEqual(len(default_rows), 2)
+        self.assertEqual(len(oversized_rows), 2)
