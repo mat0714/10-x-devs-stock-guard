@@ -1,10 +1,10 @@
 ---
 change_id: formation-detection-service
 title: Formation detection service
-status: impl_reviewed
+status: archived
 created: 2026-11-08
 updated: 2026-11-13
-archived_at: null
+archived_at: 2026-11-13T10:25:31Z
 ---
 
 ## Notes
