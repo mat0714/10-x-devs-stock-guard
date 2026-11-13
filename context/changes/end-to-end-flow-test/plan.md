@@ -187,23 +187,23 @@ Confirm the new test is green within the whole suite and that nothing regressed,
 
 #### Automated
 
-- [x] 1.1 The new class passes in isolation: `uv run python manage.py test watchlist.EndToEndFlowTests`
-- [x] 1.2 The full watchlist suite passes: `uv run python manage.py test watchlist`
-- [x] 1.3 Django system checks pass: `uv run python manage.py check`
+- [x] 1.1 The new class passes in isolation: `uv run python manage.py test watchlist.EndToEndFlowTests` — b105303
+- [x] 1.2 The full watchlist suite passes: `uv run python manage.py test watchlist` — b105303
+- [x] 1.3 Django system checks pass: `uv run python manage.py check` — b105303
 
 #### Manual
 
-- [ ] 1.4 The journey reads legibly and the asserted badge traces to the real engine's output for the planted series
+- [x] 1.4 The journey reads legibly and the asserted badge traces to the real engine's output for the planted series — b105303
 
 ### Phase 2: Full-suite verification
 
 #### Automated
 
-- [ ] 2.1 Full test suite passes: `uv run python manage.py test`
-- [ ] 2.2 Django system checks pass: `uv run python manage.py check`
-- [ ] 2.3 No migration drift remains: `uv run python manage.py makemigrations --check --dry-run`
-- [ ] 2.4 Static collection still succeeds: `uv run python manage.py collectstatic --noinput`
+- [x] 2.1 Full test suite passes: `uv run python manage.py test`
+- [x] 2.2 Django system checks pass: `uv run python manage.py check`
+- [x] 2.3 No migration drift remains: `uv run python manage.py makemigrations --check --dry-run`
+- [x] 2.4 Static collection still succeeds: `uv run python manage.py collectstatic --noinput`
 
 #### Manual
 
-- [ ] 2.5 Reviewer confirms the new test is the only change and asserts the flagged-list outcome from the user's perspective
+- [x] 2.5 Reviewer confirms the new test is the only change and asserts the flagged-list outcome from the user's perspective
