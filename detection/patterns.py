@@ -15,6 +15,13 @@ TREND_ATR_SCALE = 3.0
 RETRACE_ATR_SCALE = 3.0
 NECKLINE_SLOPE_TOLERANCE = 0.01
 
+# Only the trailing ``MAX_PIVOT_LOOKBACK`` pivots are eligible as the opening
+# pivot of a candidate. A currently-forming pattern is anchored to the live leg,
+# so this bound keeps every forming pattern while capping the nested enumeration
+# on noisy series, which can otherwise score hundreds of thousands of
+# geometrically-valid but irrelevant combinations.
+MAX_PIVOT_LOOKBACK = 20
+
 
 @dataclass(frozen=True)
 class CandidateEvidence:
@@ -48,7 +55,10 @@ def score_double_top(
         return None
 
     best: Candidate | None = None
-    for first_position, first in enumerate(pivots):
+    start = max(0, len(pivots) - MAX_PIVOT_LOOKBACK)
+    prior_lows = _prior_confirmed_lows(pivots)
+    for first_position in range(start, len(pivots)):
+        first = pivots[first_position]
         if first.kind != "high" or not first.confirmed:
             continue
         for trough_position in range(first_position + 1, len(pivots)):
@@ -80,7 +90,7 @@ def score_double_top(
                     continue
 
                 sub_score = _double_top_score(
-                    pivots,
+                    prior_lows,
                     first_position,
                     first,
                     trough,
@@ -118,7 +128,10 @@ def score_head_shoulders(
         return None
 
     best: Candidate | None = None
-    for left_position, left in enumerate(pivots):
+    start = max(0, len(pivots) - MAX_PIVOT_LOOKBACK)
+    prior_lows = _prior_confirmed_lows(pivots)
+    for left_position in range(start, len(pivots)):
+        left = pivots[left_position]
         if left.kind != "high" or not left.confirmed:
             continue
         for first_trough_position in range(left_position + 1, len(pivots)):
@@ -190,7 +203,7 @@ def score_head_shoulders(
                             continue
 
                         sub_score = _head_shoulders_score(
-                            pivots,
+                            prior_lows,
                             left_position,
                             left,
                             first_trough,
@@ -216,7 +229,7 @@ def score_head_shoulders(
 
 
 def _double_top_score(
-    pivots: Sequence[Pivot],
+    prior_lows: Sequence[Pivot | None],
     first_position: int,
     first: Pivot,
     trough: Pivot,
@@ -227,7 +240,7 @@ def _double_top_score(
     min_separation: int,
 ) -> float:
     symmetry = _symmetry(first.price, second.price, tolerance)
-    trend = _prior_trend(pivots, first_position, first.price, atr_value)
+    trend = _prior_trend(prior_lows, first_position, first.price, atr_value)
     retrace = _clamp(
         (first.price - trough.price) / (atr_value * RETRACE_ATR_SCALE)
     )
@@ -242,7 +255,7 @@ def _double_top_score(
 
 
 def _head_shoulders_score(
-    pivots: Sequence[Pivot],
+    prior_lows: Sequence[Pivot | None],
     left_position: int,
     left: Pivot,
     first_trough: Pivot,
@@ -256,7 +269,7 @@ def _head_shoulders_score(
     min_separation: int,
 ) -> float:
     symmetry = _symmetry(left.price, shoulder.price, tolerance)
-    trend = _prior_trend(pivots, left_position, head.price, atr_value)
+    trend = _prior_trend(prior_lows, left_position, head.price, atr_value)
     retrace = _clamp(
         (
             (head.price - first_trough.price)
@@ -281,12 +294,12 @@ def _symmetry(first: float, second: float, tolerance: float) -> float:
 
 
 def _prior_trend(
-    pivots: Sequence[Pivot],
+    prior_lows: Sequence[Pivot | None],
     position: int,
     peak_price: float,
     atr_value: float,
 ) -> float:
-    prior_low = _last_confirmed_low_before(pivots, position)
+    prior_low = prior_lows[position]
     if prior_low is None:
         return 0.0
     return _clamp(
@@ -294,13 +307,14 @@ def _prior_trend(
     )
 
 
-def _last_confirmed_low_before(
-    pivots: Sequence[Pivot], position: int
-) -> Pivot | None:
-    for pivot in reversed(pivots[:position]):
+def _prior_confirmed_lows(pivots: Sequence[Pivot]) -> list[Pivot | None]:
+    prior: list[Pivot | None] = [None] * len(pivots)
+    last: Pivot | None = None
+    for position, pivot in enumerate(pivots):
+        prior[position] = last
         if pivot.kind == "low" and pivot.confirmed:
-            return pivot
-    return None
+            last = pivot
+    return prior
 
 
 def _first_low_below(pivots: Sequence[Pivot], level: float) -> Pivot | None:

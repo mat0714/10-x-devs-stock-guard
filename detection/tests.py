@@ -1,3 +1,5 @@
+import random
+import time
 from datetime import date, timedelta
 from decimal import Decimal
 from io import StringIO
@@ -6,8 +8,13 @@ from unittest.mock import patch
 from django.core.management import call_command
 from django.test import TestCase
 
+from detection.patterns import score_head_shoulders
 from detection.pivots import atr, find_pivots
 from detection.services import (
+    ATR_PERIOD,
+    MIN_PIVOT_SEPARATION,
+    PIVOT_DEVIATION,
+    SHOULDER_TOLERANCE,
     FormationEvidence,
     FormationScore,
     PivotRef,
@@ -186,6 +193,54 @@ REJECTED_SECOND_PEAK_LEGS = (
     (5, -0.2),
 )
 
+NOISY_PREFIX_BARS = 449
+NOISY_PREFIX_SIGMA = 4.0
+NOISY_SERIES_SEED = 19
+PLANTED_HEAD_SHOULDERS_LEGS = (
+    (8, 1.1),
+    (10, -1.4),
+    (12, 1.6),
+    (10, -1.5),
+    (10, 1.1),
+)
+PLANTED_HEAD_SHOULDERS_INDEXES = (457, 467, 479, 489, 499)
+
+
+def _noisy_candles(
+    *,
+    seed=NOISY_SERIES_SEED,
+    prefix_bars=NOISY_PREFIX_BARS,
+    sigma=NOISY_PREFIX_SIGMA,
+    planted_legs=PLANTED_HEAD_SHOULDERS_LEGS,
+    spread=0.5,
+    start=100.0,
+    start_date=date(2024, 1, 1),
+):
+    rng = random.Random(seed)
+    closes = [start]
+    for _ in range(prefix_bars):
+        closes.append(closes[-1] + rng.gauss(0.0, sigma))
+    price = closes[-1]
+    for bars, step in planted_legs:
+        for _ in range(bars):
+            price += step
+            closes.append(price)
+    candles = []
+    previous = start
+    for offset, close in enumerate(closes):
+        candles.append(
+            Candle(
+                date=start_date + timedelta(days=offset),
+                open=Decimal(str(round(previous, 4))),
+                high=Decimal(str(round(close + spread, 4))),
+                low=Decimal(str(round(close - spread, 4))),
+                close=Decimal(str(round(close, 4))),
+                volume=None,
+            )
+        )
+        previous = close
+    return tuple(candles)
+
 
 class ScoreFormationTests(TestCase):
     def test_scoreFormationReturnsFormingDoubleTopWhenSecondPeakStallsAtFirstPeak(self):
@@ -256,6 +311,34 @@ class ScoreFormationTests(TestCase):
         self.assertEqual(result.pattern, "double_top")
         self.assertEqual(result.stage, "forming")
         self.assertNotEqual(result.grade, "none")
+
+
+class BoundedEnumerationTests(TestCase):
+    def test_scoreHeadShouldersReturnsPlantedFormingPatternWhenSeriesIsNoisy(self):
+        candles = _noisy_candles()
+        atr_value = atr(candles, ATR_PERIOD)
+        pivots = find_pivots(candles, atr_value=atr_value, deviation=PIVOT_DEVIATION)
+        self.assertGreater(len(pivots), 100)
+
+        started = time.perf_counter()
+        score_formation(_price_series(candles))
+        elapsed = time.perf_counter() - started
+        self.assertLess(elapsed, 1.0)
+
+        candidate = score_head_shoulders(
+            pivots,
+            atr_value=atr_value,
+            tolerance=SHOULDER_TOLERANCE,
+            min_separation=MIN_PIVOT_SEPARATION,
+        )
+
+        self.assertIsNotNone(candidate)
+        self.assertEqual(candidate.pattern, "head_shoulders")
+        self.assertEqual(candidate.stage, "forming")
+        self.assertEqual(
+            [pivot.index for pivot in candidate.evidence.pivots],
+            list(PLANTED_HEAD_SHOULDERS_INDEXES),
+        )
 
 
 class ScoreSymbolCommandTests(TestCase):
