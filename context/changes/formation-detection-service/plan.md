@@ -372,24 +372,24 @@ Add the `score_symbol` command for tuning and debugging, wire the Django test ru
 
 #### Automated
 
-- [x] 1.1 Detection tests pass
-- [x] 1.2 Django system checks pass
-- [x] 1.3 Lockfile is current (`uv lock --check`)
+- [x] 1.1 Detection tests pass — d8d6895
+- [x] 1.2 Django system checks pass — d8d6895
+- [x] 1.3 Lockfile is current (`uv lock --check`) — d8d6895
 
 #### Manual
 
-- [x] 1.4 `find_pivots` returns expected confirmed/unconfirmed pivots in the shell
+- [x] 1.4 `find_pivots` returns expected confirmed/unconfirmed pivots in the shell — d8d6895
 
 ### Phase 2: Formation scoring engine
 
 #### Automated
 
-- [ ] 2.1 Detection tests pass
-- [ ] 2.2 Django system checks pass
+- [x] 2.1 Detection tests pass
+- [x] 2.2 Django system checks pass
 
 #### Manual
 
-- [ ] 2.3 `score_formation` returns forming and confirmed grades on hand-built series
+- [x] 2.3 `score_formation` returns forming and confirmed grades on hand-built series
 
 ### Phase 3: Watchlist list-page rendering
 
